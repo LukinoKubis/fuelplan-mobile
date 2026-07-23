@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Pressable, ScrollView, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Step0Start } from './steps/Step0Start'
@@ -15,6 +15,7 @@ import { buildGenerateRequest } from '../../lib/generatePrompt'
 import { resolveProfileMacros } from '../../lib/macros'
 import type { Plan } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'
+import { friendlyErrorMessage } from '../../lib/errorMessage'
 
 const TOTAL_STEPS = 4
 
@@ -83,7 +84,7 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
       if (err instanceof ApiError) {
         setError({ message: err.message, isOutOfPlans: err.status === 402 })
       } else {
-        setError({ message: (err as Error).message || 'Unknown error occurred.', isOutOfPlans: false })
+        setError({ message: friendlyErrorMessage(err), isOutOfPlans: false })
       }
     }
   }
@@ -111,52 +112,54 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
 
   return (
     <SafeAreaView className="flex-1 bg-light-bg dark:bg-bg">
-      <ScrollView contentContainerClassName="px-5 pb-28 pt-6" keyboardShouldPersistTaps="handled">
-        <View className="mb-6 flex-row items-center gap-3">
-          <View className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: c.border }}>
-            <View className="h-full rounded-full bg-lime" style={{ width: `${(step / (TOTAL_STEPS - 1)) * 100}%` }} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
+        <ScrollView contentContainerClassName="px-5 pt-6" keyboardShouldPersistTaps="handled" className="flex-1">
+          <View className="mb-6 flex-row items-center gap-3">
+            <View className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: c.border }}>
+              <View className="h-full rounded-full bg-lime" style={{ width: `${(step / (TOTAL_STEPS - 1)) * 100}%` }} />
+            </View>
+            <Text className="text-xs font-semibold" style={{ color: c.muted }}>{step + 1}/4</Text>
           </View>
-          <Text className="text-xs font-semibold" style={{ color: c.muted }}>{step + 1}/4</Text>
-        </View>
 
-        {step === 0 && <Step0Start name={profile.name} onNameChange={(name) => patch({ name })} />}
-        {step === 1 && (
-          <Step1Training
-            trainingDays={profile.trainingDays}
-            onTrainingDays={(trainingDays) => patch({ trainingDays })}
-            trainingStyle={profile.trainingStyle}
-            onTrainingStyle={(trainingStyle) => patch({ trainingStyle })}
-            cookingSkill={profile.cookingSkill}
-            onCookingSkill={(cookingSkill) => patch({ cookingSkill })}
-            prepTime={profile.prepTime}
-            onPrepTime={(prepTime) => patch({ prepTime })}
-          />
-        )}
-        {step === 2 && (
-          <Step2Food
-            dietPref={profile.dietPref}
-            onDietPref={(dietPref) => patch({ dietPref })}
-            dislikedFoods={profile.dislikedFoods}
-            onDislikedFoods={(dislikedFoods) => patch({ dislikedFoods })}
-            cuisines={profile.cuisines}
-            onToggleCuisine={toggleCuisine}
-            variety={profile.variety}
-            onVariety={(variety) => patch({ variety })}
-          />
-        )}
-        {step === 3 && <Step3Macros profile={profile} onChange={patch} />}
-      </ScrollView>
+          {step === 0 && <Step0Start name={profile.name} onNameChange={(name) => patch({ name })} />}
+          {step === 1 && (
+            <Step1Training
+              trainingDays={profile.trainingDays}
+              onTrainingDays={(trainingDays) => patch({ trainingDays })}
+              trainingStyle={profile.trainingStyle}
+              onTrainingStyle={(trainingStyle) => patch({ trainingStyle })}
+              cookingSkill={profile.cookingSkill}
+              onCookingSkill={(cookingSkill) => patch({ cookingSkill })}
+              prepTime={profile.prepTime}
+              onPrepTime={(prepTime) => patch({ prepTime })}
+            />
+          )}
+          {step === 2 && (
+            <Step2Food
+              dietPref={profile.dietPref}
+              onDietPref={(dietPref) => patch({ dietPref })}
+              dislikedFoods={profile.dislikedFoods}
+              onDislikedFoods={(dislikedFoods) => patch({ dislikedFoods })}
+              cuisines={profile.cuisines}
+              onToggleCuisine={toggleCuisine}
+              variety={profile.variety}
+              onVariety={(variety) => patch({ variety })}
+            />
+          )}
+          {step === 3 && <Step3Macros profile={profile} onChange={patch} />}
+        </ScrollView>
 
-      <View className="absolute inset-x-0 bottom-0 flex-row gap-3 border-t px-5 py-3" style={{ borderColor: c.border, backgroundColor: c.bg, paddingBottom: 24 }}>
-        {(step > 0 || canCancel) && (
-          <Pressable onPress={prev} className="rounded-xl border px-4 py-3" style={{ borderColor: c.border }}>
-            <Text className="text-sm font-semibold" style={{ color: c.muted }}>Back</Text>
+        <View className="flex-row gap-3 border-t px-5 py-3" style={{ borderColor: c.border, backgroundColor: c.bg }}>
+          {(step > 0 || canCancel) && (
+            <Pressable onPress={prev} className="rounded-xl border px-4 py-3" style={{ borderColor: c.border }}>
+              <Text className="text-sm font-semibold" style={{ color: c.muted }}>Back</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={next} className="flex-1 items-center rounded-xl bg-lime py-3">
+            <Text className="text-sm font-extrabold text-bg">{step === TOTAL_STEPS - 1 ? 'Generate My Plan' : 'Continue'}</Text>
           </Pressable>
-        )}
-        <Pressable onPress={next} className="flex-1 items-center rounded-xl bg-lime py-3">
-          <Text className="text-sm font-extrabold text-bg">{step === TOTAL_STEPS - 1 ? 'Generate My Plan' : 'Continue'}</Text>
-        </Pressable>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
 
       {loading && <LoadingOverlay onCancel={handleCancelLoading} />}
       {error && (

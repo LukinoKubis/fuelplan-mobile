@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pressable, TextInput, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useRouter } from 'expo-router'
 import { usePlan } from '../../state/PlanContext'
@@ -29,7 +29,7 @@ export default function PlanNameScreen() {
   }
 
   return (
-    <View className="flex-1 p-5" style={{ backgroundColor: c.bg }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 p-5" style={{ backgroundColor: c.bg }}>
       <Text className="mb-1.5 text-lg" style={{ color: c.text }}>Name your plan</Text>
       <Text className="mb-4 text-sm" style={{ color: c.muted }}>Give this week's plan a name so you can find it later in My Plans.</Text>
       <TextInput
@@ -49,6 +49,6 @@ export default function PlanNameScreen() {
           <Text className="text-sm font-extrabold text-bg">Save</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }

@@ -186,6 +186,48 @@ actual "a real device receives a test push" milestone acceptance criterion
 is on hold until the user does the EAS/Firebase/Apple Developer setup
 (or delegates specific steps back with credentials/access).
 
+## M6 status: polish done, EAS/store submission blocked
+Keyboard-avoidance audit done (`SurveyFlow.tsx`'s footer was
+`position: absolute`, which doesn't cooperate with `KeyboardAvoidingView`'s
+padding-based approach — restructured to normal flex flow; `plan-name.tsx`
+wrapped too). Added `src/lib/errorMessage.ts` for a friendly
+"you're offline" message on raw network failures (RN has no reliable
+`navigator.onLine` and no PWA service-worker offline fallback to lean on)
+— wired into login/signup, forgot/reset-password, and plan generation.
+`eas.json` added with the standard development/preview/production
+profiles.
+
+**App icons — real branding, but not final submission-quality.** Copied
+the web app's PWA icons in as the Android adaptive icon foreground
+(`icon-maskable-512.png` — already has the safe-zone padding adaptive
+icons need), splash icon, top-level icon, and web favicon, with
+`app.json`'s background colors switched from the scaffold's placeholder
+blue to the actual brand dark (`#0e0f11`). **Two things still need a real
+design pass, not more agent work:**
+- The source is only 512×512; the App Store wants a 1024×1024 master —
+  upscaling would look soft. No image-generation/upscaling tool was
+  available in this dev environment to do better than a straight copy.
+- `assets/expo.icon` (iOS) is Apple's newer multi-layer "Icon Composer"
+  bundle format (a directory: `icon.json` + `Assets/`), not a plain PNG —
+  left untouched at the scaffold's placeholder rather than risk
+  fabricating a malformed bundle without the real tooling (Xcode's Icon
+  Composer) to author one correctly.
+- `android-icon-monochrome.png` (Android 13+ themed icon) is also still
+  the scaffold's generic placeholder.
+
+**Blocked on the user, same shape as M5's blockers:**
+- `eas login` + `eas init` — needs an Expo account, interactive login.
+- First EAS builds (`eas build`) — needs the above, plus this is the
+  point where Apple Developer Program enrollment ($99/yr, ~24-48h
+  identity verification) and Google Play Console ($25 one-time) actually
+  become load-bearing, not just "worth doing early" — see the migration
+  plan's cost/timeline notes.
+- Store listing assets — privacy policy (needs a hosted URL, e.g. a page
+  on fuelplan.fit), screenshots (need a real build running on a device or
+  simulator, neither available here), Data Safety/App Privacy
+  questionnaire answers, a reviewer demo account (can create one the same
+  way the earlier test accounts were created, once asked).
+
 ## File structure
 - `src/app/` — Expo Router routes. `_layout.tsx` (root: providers +
   hydration gate + nav theme), `(auth)/` (login/signup/forgot-password/

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import Svg, { Path, Rect } from 'react-native-svg'
 import { Field } from '../../components/Field'
 import { useAccount } from '../../state/AccountContext'
+import { friendlyErrorMessage } from '../../lib/errorMessage'
 
 type Mode = 'login' | 'signup'
 
@@ -28,7 +29,7 @@ export default function LoginScreen() {
         await signup(email.trim().toLowerCase(), password)
       }
     } catch (err) {
-      setError((err as Error).message || 'Something went wrong — please try again.')
+      setError(friendlyErrorMessage(err))
     } finally {
       setBusy(false)
     }

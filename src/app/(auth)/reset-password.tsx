@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Field } from '../../components/Field'
 import { resetPassword } from '../../lib/client'
 import { useThemeColors } from '../../lib/themeColors'
+import { friendlyErrorMessage } from '../../lib/errorMessage'
 
 // Reached via the deep link in the forgot-password email:
 // fuelplanmobile://reset-password?token=TOKEN (scheme set in app.json).
@@ -27,7 +28,7 @@ export default function ResetPasswordScreen() {
       setNotice('Password updated — you can log in now.')
       setTimeout(() => router.replace('/(auth)/login'), 1200)
     } catch (err) {
-      setError((err as Error).message || 'That reset link is invalid or has expired.')
+      setError(friendlyErrorMessage(err, 'That reset link is invalid or has expired.'))
     } finally {
       setBusy(false)
     }
