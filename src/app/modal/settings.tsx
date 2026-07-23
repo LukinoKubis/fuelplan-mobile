@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useRouter } from 'expo-router'
@@ -10,6 +10,8 @@ import { usePlan } from '../../state/PlanContext'
 import { useAccount } from '../../state/AccountContext'
 import { createCheckout } from '../../lib/client'
 import { useThemeColors } from '../../lib/themeColors'
+import { registerForPushNotificationsAsync, subscribePush, unsubscribePush } from '../../lib/pushNotifications'
+import { loadString, remove, saveString, STORAGE_KEYS } from '../../lib/storage'
 
 export default function SettingsScreen() {
   const c = useThemeColors()
@@ -19,6 +21,13 @@ export default function SettingsScreen() {
   const { email, remaining, logout } = useAccount()
   const [resetConfirm, setResetConfirm] = useState(false)
   const [topupBusy, setTopupBusy] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushError, setPushError] = useState('')
+
+  useEffect(() => {
+    loadString(STORAGE_KEYS.pushToken).then((token) => setPushEnabled(!!token))
+  }, [])
 
   async function handleTopUp() {
     setTopupBusy(true)
@@ -28,6 +37,38 @@ export default function SettingsScreen() {
     } finally {
       setTopupBusy(false)
     }
+  }
+
+  // Requires this project to be linked to EAS (for a push token) and, for
+  // real delivery, FCM v1 (Android) / APNs (iOS) credentials configured in
+  // EAS — neither exists yet, see CLAUDE.md's "Push notifications" note.
+  // Fails soft: toggle just won't turn on and shows why, rather than crash.
+  async function handlePushToggle() {
+    setPushError('')
+    if (pushEnabled) {
+      setPushBusy(true)
+      const existing = await loadString(STORAGE_KEYS.pushToken)
+      if (existing) await unsubscribePush(existing)
+      await remove(STORAGE_KEYS.pushToken)
+      setPushEnabled(false)
+      setPushBusy(false)
+      return
+    }
+    setPushBusy(true)
+    const token = await registerForPushNotificationsAsync()
+    if (!token) {
+      setPushError('Push notifications need this build to be linked to EAS — not set up yet.')
+      setPushBusy(false)
+      return
+    }
+    const ok = await subscribePush(token)
+    if (ok) {
+      await saveString(STORAGE_KEYS.pushToken, token)
+      setPushEnabled(true)
+    } else {
+      setPushError('Could not reach the server — try again.')
+    }
+    setPushBusy(false)
   }
 
   function handleFullReset() {
@@ -64,6 +105,20 @@ export default function SettingsScreen() {
           trailing={
             <Pressable onPress={toggleTheme} className="h-6 w-11 justify-center rounded-full" style={{ backgroundColor: theme === 'dark' ? c.lime : c.border }}>
               <View className="h-5 w-5 rounded-full bg-white" style={{ marginLeft: theme === 'dark' ? 22 : 2 }} />
+            </Pressable>
+          }
+        />
+      </View>
+
+      <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Notifications</Text>
+      <View className="mb-4">
+        <SettingsAction
+          icon={<BellIcon />}
+          title="Weekly Summary"
+          desc={pushError || (pushBusy ? 'Working…' : pushEnabled ? 'On for this device' : 'Off')}
+          trailing={
+            <Pressable onPress={handlePushToggle} disabled={pushBusy} className="h-6 w-11 justify-center rounded-full" style={{ backgroundColor: pushEnabled ? c.lime : c.border, opacity: pushBusy ? 0.6 : 1 }}>
+              <View className="h-5 w-5 rounded-full bg-white" style={{ marginLeft: pushEnabled ? 22 : 2 }} />
             </Pressable>
           }
         />
@@ -169,6 +224,15 @@ function TrashIcon() {
       <Path d="M10 11v6" />
       <Path d="M14 11v6" />
       <Path d="M9 6V4h6v2" />
+    </Svg>
+  )
+}
+function BellIcon() {
+  const c = useThemeColors()
+  return (
+    <Svg {...ICON_PROPS} stroke={c.lime}>
+      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </Svg>
   )
 }

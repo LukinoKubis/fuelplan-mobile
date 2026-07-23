@@ -156,6 +156,36 @@ SecureStore. **This means token persistence has only been verified via the
 web fallback, not against real Keychain/Keystore** — worth a real-device
 smoke test before trusting it fully.
 
+## expo-notifications has no web build at all
+Unlike `expo-secure-store` (a no-op stub on web — see above),
+`expo-notifications`'s `package.json` `main` field points at a file that
+doesn't exist for the web platform at all — importing it anywhere
+reachable from the web bundle **fails the entire Metro build** (a hard
+500, not a graceful fallback). Fixed by splitting `src/lib/pushNotifications.ts`
+into a real native implementation plus a `pushNotifications.web.ts`
+sibling (trivial no-op stubs, never importing `expo-notifications` or
+`expo-device`) — Metro's platform-extension resolution picks the `.web.ts`
+file automatically for web builds, so every caller just imports from
+`../lib/pushNotifications` unchanged. If a future native-only package
+breaks `expo start --web`, suspect this same pattern (no web entry at all,
+not just a stub) before assuming the import itself is wrong.
+
+## M5 status: code done, infra blocked
+The client (`src/lib/pushNotifications.ts`, Settings' toggle) and backend
+(`claude-backend`'s swap to `expo-server-sdk`) are both written and
+verified as far as this environment allows — typecheck clean, backend
+starts and serves cleanly, Settings renders the toggle correctly (in its
+"Off"/not-configured state) with no crashes. What's **not** done, and
+can't be from here: `getExpoPushTokenAsync()` needs this project linked to
+an EAS project (`eas init` — not run yet, see M6), Android delivery needs
+FCM v1 credentials from a Firebase project (doesn't exist — needs the
+user's interactive Google account/console access), iOS delivery needs an
+APNs push key (needs Apple Developer Program enrollment, also not done
+yet). None of these are things an agent can complete unattended. The
+actual "a real device receives a test push" milestone acceptance criterion
+is on hold until the user does the EAS/Firebase/Apple Developer setup
+(or delegates specific steps back with credentials/access).
+
 ## File structure
 - `src/app/` — Expo Router routes. `_layout.tsx` (root: providers +
   hydration gate + nav theme), `(auth)/` (login/signup/forgot-password/

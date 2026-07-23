@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   activePlanSavedAt: 'fp_activePlanSavedAt',
   theme: 'fp_theme',
   favorites: 'fp_favorites',
+  pushToken: 'fp_pushToken',
 } as const
 
 export async function loadJSON<T>(key: string): Promise<T | null> {
