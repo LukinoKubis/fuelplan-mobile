@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
+import { Text } from '@/components/Text'
 import { CardGrid, PillGroup } from '../Chips'
 import { COOKING_SKILL_OPTIONS, PREP_TIME_OPTIONS, TRAINING_DAYS_OPTIONS, TRAINING_STYLE_OPTIONS } from '../options'
 

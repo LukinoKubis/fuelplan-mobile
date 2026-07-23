@@ -1,4 +1,5 @@
-import { Text, TextInput, View, type TextInputProps } from 'react-native'
+import { TextInput, View, type TextInputProps } from 'react-native'
+import { Text } from '@/components/Text'
 
 interface FieldProps extends TextInputProps {
   label: string

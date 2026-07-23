@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native'
+import { Text } from '@/components/Text'
+import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Svg, { Path, Rect } from 'react-native-svg'
 import { Field } from '../../components/Field'
@@ -8,6 +10,7 @@ import { useAccount } from '../../state/AccountContext'
 type Mode = 'login' | 'signup'
 
 export default function LoginScreen() {
+  const router = useRouter()
   const { login, signup } = useAccount()
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -71,6 +74,12 @@ export default function LoginScreen() {
             />
 
             {error ? <Text className="mb-3 text-sm text-red">{error}</Text> : null}
+
+            {mode === 'login' && (
+              <Pressable onPress={() => router.push('/(auth)/forgot-password')} className="mb-3 self-end">
+                <Text className="text-xs font-semibold text-light-muted underline dark:text-muted">Forgot password?</Text>
+              </Pressable>
+            )}
 
             <Pressable
               onPress={handleSubmit}

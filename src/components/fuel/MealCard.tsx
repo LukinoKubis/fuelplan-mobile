@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, View } from 'react-native'
+import { Text } from '@/components/Text'
 import Svg, { Path } from 'react-native-svg'
 import type { Meal } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'

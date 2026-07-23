@@ -33,9 +33,15 @@ module.exports = {
         'light-text': '#0e0f11',
         'light-muted': '#5a6280',
       },
+      // expo-font's useFonts() registers each loaded weight as its own
+      // distinct font-family name (e.g. "Syne_800ExtraBold"), not a single
+      // "Syne" family with weight variants the way CSS @font-face normally
+      // works — so these must reference the exact loaded names (see
+      // src/app/_layout.tsx's useFonts() call), not the bare family name,
+      // or every Text silently falls back to the system font.
       fontFamily: {
-        display: ['Syne'],
-        body: ['Figtree'],
+        display: ['Syne_800ExtraBold'],
+        body: ['Figtree_400Regular'],
       },
     },
   },

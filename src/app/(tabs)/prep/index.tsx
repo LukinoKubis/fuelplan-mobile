@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Pressable, ScrollView, View } from 'react-native'
+import { Text } from '@/components/Text'
 import { usePlan } from '../../../state/PlanContext'
+import { ErrorBoundary } from '../../../components/shared/ErrorBoundary'
 import { useThemeColors } from '../../../lib/themeColors'
 
 const LANE_LABEL: Record<string, string> = {
@@ -20,8 +21,8 @@ export default function PrepScreen() {
   const totalMinutes = tasks.reduce((s, t) => s + t.durationMinutes, 0)
 
   return (
-    <SafeAreaView className="flex-1 bg-light-bg dark:bg-bg" edges={['top']}>
-      <ScrollView contentContainerClassName="p-4">
+    <ErrorBoundary>
+      <ScrollView className="flex-1 bg-light-bg dark:bg-bg" contentContainerClassName="p-4">
         <View className="mb-4">
           <Text className="font-display text-lg font-extrabold" style={{ color: c.text }}>Sunday Prep</Text>
           {tasks.length > 0 && (
@@ -59,6 +60,6 @@ export default function PrepScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ErrorBoundary>
   )
 }

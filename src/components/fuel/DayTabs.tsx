@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, View } from 'react-native'
+import { Text } from '@/components/Text'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Svg, { Path } from 'react-native-svg'
 import { useThemeColors } from '../../lib/themeColors'

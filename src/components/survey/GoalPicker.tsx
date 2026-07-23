@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, View } from 'react-native'
+import { Text } from '@/components/Text'
 import { GOAL_PRESETS, formatGoalOffset } from '../../types/goal'
 import { useThemeColors } from '../../lib/themeColors'
 

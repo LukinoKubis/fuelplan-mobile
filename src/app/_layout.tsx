@@ -1,7 +1,8 @@
 import '../global.css'
 import { useEffect } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { Slot } from 'expo-router'
+import { DarkTheme, DefaultTheme, Slot, ThemeProvider as NavigationThemeProvider } from 'expo-router'
+import type { Theme as NavigationTheme } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
 import { Syne_400Regular, Syne_700Bold, Syne_800ExtraBold } from '@expo-google-fonts/syne'
@@ -13,8 +14,21 @@ import { warmUpBackend } from '../lib/client'
 
 SplashScreen.preventAutoHideAsync()
 
+// React Navigation's own theme controls native chrome (Stack headers, tab
+// bar defaults) that NativeWind's colorScheme doesn't reach — without this,
+// modal/stack headers render with RN Navigation's light-theme default
+// regardless of our own dark/light toggle. Colors match tailwind.config.js.
+const NAV_DARK_THEME: NavigationTheme = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, primary: '#c8f542', background: '#0e0f11', card: '#1e2128', text: '#f0f2f5', border: '#2a2d35' },
+}
+const NAV_LIGHT_THEME: NavigationTheme = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, primary: '#c8f542', background: '#f0f2f5', card: '#ffffff', text: '#0e0f11', border: '#d8dce6' },
+}
+
 function AppReadyGate({ children }: { children: React.ReactNode }) {
-  const { isHydrated: themeReady } = useTheme()
+  const { theme, isHydrated: themeReady } = useTheme()
   const { isHydrated: accountReady } = useAccount()
   const { isHydrated: planReady } = usePlan()
   const [fontsLoaded] = useFonts({
@@ -38,7 +52,7 @@ function AppReadyGate({ children }: { children: React.ReactNode }) {
   }, [])
 
   if (!ready) return null
-  return <>{children}</>
+  return <NavigationThemeProvider value={theme === 'dark' ? NAV_DARK_THEME : NAV_LIGHT_THEME}>{children}</NavigationThemeProvider>
 }
 
 export default function RootLayout() {

@@ -4,6 +4,7 @@ import Svg, { Line, Path, Rect } from 'react-native-svg'
 import { useAccount } from '../../state/AccountContext'
 import { usePlan } from '../../state/PlanContext'
 import { Header } from '../../components/layout/Header'
+import { useThemeColors } from '../../lib/themeColors'
 
 const ICON_PROPS = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
 
@@ -36,6 +37,7 @@ export default function TabsLayout() {
   const { isAuthed } = useAccount()
   const { plan, surveyMode } = usePlan()
   const router = useRouter()
+  const c = useThemeColors()
 
   if (!isAuthed) return <Redirect href="/(auth)/login" />
 
@@ -49,9 +51,9 @@ export default function TabsLayout() {
       screenOptions={{
         header: chromeHidden ? undefined : () => <Header onOpenSettings={() => router.push('/modal/settings')} />,
         headerShown: !chromeHidden,
-        tabBarStyle: chromeHidden ? { display: 'none' } : { backgroundColor: '#1e2128', borderTopColor: '#2a2d35' },
-        tabBarActiveTintColor: '#c8f542',
-        tabBarInactiveTintColor: '#7a8099',
+        tabBarStyle: chromeHidden ? { display: 'none' } : { backgroundColor: c.card, borderTopColor: c.border },
+        tabBarActiveTintColor: c.lime,
+        tabBarInactiveTintColor: c.muted,
       }}
     >
       <Tabs.Screen name="fuel/index" options={{ title: 'Fuel', tabBarIcon: ({ color }) => <FuelIcon color={color} /> }} />
