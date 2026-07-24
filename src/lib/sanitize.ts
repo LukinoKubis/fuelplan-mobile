@@ -1,4 +1,5 @@
 // Ported verbatim from fuelplan-frontend/src/api/sanitize.ts
+/** Prompt-injection phrases stripped from free-text survey fields before they reach the Claude prompt. */
 const INJECTION_PATTERNS: RegExp[] = [
   /ignore\s+(all\s+)?(previous|above|prior|earlier)\s+instructions?/gi,
   /forget\s+(all\s+)?(previous|above|prior|earlier)/gi,
@@ -17,6 +18,13 @@ const INJECTION_PATTERNS: RegExp[] = [
   /api\s*key/gi,
 ]
 
+/**
+ * Sanitizes a free-text survey field (diet prefs, disliked foods, cuisines)
+ * before it's interpolated into the Claude prompt: truncates to 200 chars,
+ * strips known prompt-injection phrases, then strips any character outside
+ * a food-data-safe allowlist (letters/numbers/spaces/commas/hyphens/
+ * slashes/parens/&/apostrophes).
+ */
 export function sanitizeInput(str: string | null | undefined): string {
   if (!str) return ''
   let s = str.slice(0, 200)

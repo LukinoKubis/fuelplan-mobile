@@ -2,6 +2,7 @@
 import type { Macros } from '../types/plan'
 import type { Profile, Sex } from '../types/profile'
 
+/** Mifflin-St Jeor BMR × activity multiplier → TDEE, then a goalOffset kcal adjustment; fat fixed at 25% of kcal, protein at 2.2g/kg, carbs fill the remainder. */
 export function calculateMacros(params: { weight: number; height: number; age: number; sex: Sex; activity: number; goalOffset: number }): {
   macros: Macros
   tdee: number
@@ -33,6 +34,11 @@ export interface GoalWeightResult {
 
 const MAX_KG_PER_WEEK = 1.5
 
+/**
+ * Derives a daily kcal deficit/surplus from a target weight + a chosen
+ * weekly rate of change, capping at 1.5kg/week and attaching a
+ * safety-rail warning message scaled to how aggressive the pace is.
+ */
 export function calculateGoalWeight(currentWeight: number, goalWeight: number, weeklyRate: number): GoalWeightResult {
   const totalChange = currentWeight - goalWeight
   const effectiveRate = totalChange >= 0 ? Math.abs(weeklyRate) : -Math.abs(weeklyRate)
@@ -87,6 +93,12 @@ export function calculateGoalWeight(currentWeight: number, goalWeight: number, w
   }
 }
 
+/**
+ * Resolves a survey profile down to the macro targets sent with a generate
+ * request — manual entry as-is, or the calc-mode result (a goal-preset
+ * offset, or the offset implied by a target-weight + pace). Returns null
+ * if required fields aren't filled in yet.
+ */
 export function resolveProfileMacros(profile: Profile): Macros | null {
   if (profile.mode === 'manual') {
     const kcal = parseInt(profile.mKcal, 10)

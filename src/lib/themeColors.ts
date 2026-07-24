@@ -33,6 +33,7 @@ const LIGHT = {
   muted: '#5a6280',
 }
 
+/** Returns the current theme's hex palette, re-evaluated whenever the theme toggles. */
 export function useThemeColors() {
   const { theme } = useTheme()
   return theme === 'light' ? LIGHT : DARK

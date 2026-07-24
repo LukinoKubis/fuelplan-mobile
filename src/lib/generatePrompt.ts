@@ -74,6 +74,13 @@ export interface FavoriteMeal {
   name: string
 }
 
+/**
+ * Assembles the full Claude request (system prompt + user message) for a
+ * 7-day meal plan generation, from the survey profile + resolved macro
+ * targets + optional favorited meals. The user message embeds the JSON
+ * shape Claude must return (`JSON_TEMPLATE`) so the response can be parsed
+ * directly without a separate schema round-trip.
+ */
 export function buildGenerateRequest(params: {
   profile: Profile
   macros: Macros

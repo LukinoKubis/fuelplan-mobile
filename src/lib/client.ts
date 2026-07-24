@@ -5,8 +5,10 @@
 import type { HistoryEntryMeta, Macros, Plan } from '../types/plan'
 import { loadToken, saveToken, removeToken } from './secureStorage'
 
+/** Railway-hosted backend shared with the (now-frozen) web app — no local backend proxy. */
 export const API_BASE = 'https://fuelplan-backend-production.up.railway.app'
 
+/** Thrown for any non-2xx backend response, with a user-presentable `message` and the HTTP `status`. */
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -15,6 +17,7 @@ export class ApiError extends Error {
   }
 }
 
+/** Maps a failed response to a friendly ApiError per status code, then throws it. */
 async function parseErrorResponse(response: Response): Promise<never> {
   const err = await response.json().catch(() => ({}) as { error?: string; message?: string })
   const status = response.status
@@ -26,10 +29,12 @@ async function parseErrorResponse(response: Response): Promise<never> {
   throw new ApiError(status, err.error || `API error ${status}`)
 }
 
+/** Reads the JWT from SecureStore — '' if not signed in. */
 export async function getToken(): Promise<string> {
   return (await loadToken()) || ''
 }
 
+/** Builds the `Authorization: Bearer` header for an authenticated request, or `{}` if signed out. */
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -40,6 +45,7 @@ export interface ClaudeMessage {
   content: string
 }
 
+/** A system prompt block — can carry a `cache_control` breakpoint (see generatePrompt.ts). */
 export interface SystemBlock {
   type: 'text'
   text: string
@@ -57,6 +63,7 @@ export interface ClaudeResponse {
   content: { text?: string }[]
 }
 
+/** Generic Anthropic proxy — the backend forwards this payload straight to Claude and deducts a credit. */
 export async function postClaude(body: GenerateRequest, signal?: AbortSignal): Promise<ClaudeResponse> {
   const response = await fetch(`${API_BASE}/api/claude`, {
     method: 'POST',
@@ -68,6 +75,7 @@ export async function postClaude(body: GenerateRequest, signal?: AbortSignal): P
   return response.json()
 }
 
+/** Fetches the signed-in user's remaining AI-generation credits. */
 export async function fetchUsage(): Promise<{ remaining: number }> {
   const response = await fetch(`${API_BASE}/api/usage`, {
     method: 'POST',
@@ -78,6 +86,7 @@ export async function fetchUsage(): Promise<{ remaining: number }> {
   return response.json()
 }
 
+/** Names and saves the current plan to the user's history (max 5 entries server-side). */
 export async function saveHistory(params: { plan: Plan; userName: string; planName: string; macros: Macros }): Promise<{ ok: boolean; id: number }> {
   const response = await fetch(`${API_BASE}/api/history/save`, {
     method: 'POST',
@@ -88,6 +97,7 @@ export async function saveHistory(params: { plan: Plan; userName: string; planNa
   return response.json()
 }
 
+/** Lists saved-plan metadata (id/savedAt/planName/macros) for the History screen. */
 export async function getHistoryList(): Promise<{ history: HistoryEntryMeta[] }> {
   const response = await fetch(`${API_BASE}/api/history/get`, {
     method: 'POST',
@@ -98,6 +108,7 @@ export async function getHistoryList(): Promise<{ history: HistoryEntryMeta[] }>
   return response.json()
 }
 
+/** Fetches the full plan JSON for a saved history entry, to reactivate it. */
 export async function restoreHistory(planId: number): Promise<{ plan: Plan; userName: string; planName: string; savedAt: string }> {
   const response = await fetch(`${API_BASE}/api/history/restore`, {
     method: 'POST',
@@ -108,6 +119,7 @@ export async function restoreHistory(planId: number): Promise<{ plan: Plan; user
   return response.json()
 }
 
+/** Removes a saved plan from history. */
 export async function deleteHistory(planId: number): Promise<{ ok: boolean; remaining: number }> {
   const response = await fetch(`${API_BASE}/api/history/delete`, {
     method: 'POST',
@@ -118,6 +130,7 @@ export async function deleteHistory(planId: number): Promise<{ ok: boolean; rema
   return response.json()
 }
 
+/** Starts a LemonSqueezy checkout for a credit top-up plan; returns the URL to open. */
 export async function createCheckout(plan: '5' | '10' | '20'): Promise<{ url: string }> {
   const response = await fetch(`${API_BASE}/api/create-checkout`, {
     method: 'POST',
@@ -134,6 +147,7 @@ export interface AuthResponse {
   email: string
 }
 
+/** Creates a new account. */
 export async function signup(email: string, password: string): Promise<AuthResponse> {
   const response = await fetch(`${API_BASE}/api/auth/signup`, {
     method: 'POST',
@@ -144,6 +158,7 @@ export async function signup(email: string, password: string): Promise<AuthRespo
   return response.json()
 }
 
+/** Signs in to an existing account. */
 export async function login(email: string, password: string): Promise<AuthResponse> {
   const response = await fetch(`${API_BASE}/api/auth/login`, {
     method: 'POST',
@@ -154,6 +169,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
   return response.json()
 }
 
+/** Requests a password-reset email. Always resolves `{ ok: true }` server-side — no email enumeration. */
 export async function forgotPassword(email: string): Promise<{ ok: boolean }> {
   const response = await fetch(`${API_BASE}/api/auth/forgot-password`, {
     method: 'POST',
@@ -164,6 +180,7 @@ export async function forgotPassword(email: string): Promise<{ ok: boolean }> {
   return response.json()
 }
 
+/** Completes a password reset using the token from the emailed deep link. */
 export async function resetPassword(token: string, newPassword: string): Promise<{ ok: boolean }> {
   const response = await fetch(`${API_BASE}/api/auth/reset-password`, {
     method: 'POST',
@@ -174,14 +191,22 @@ export async function resetPassword(token: string, newPassword: string): Promise
   return response.json()
 }
 
+/** Persists a JWT to SecureStore. */
 export async function saveSession(token: string): Promise<void> {
   await saveToken(token)
 }
 
+/** Removes the persisted JWT from SecureStore. */
 export async function clearSession(): Promise<void> {
   await removeToken()
 }
 
+/**
+ * Fires a health-check request on app launch to wake a cold-started
+ * Railway instance early, retrying every 5s until it succeeds — so the
+ * backend is more likely already warm by the time the user actually
+ * triggers a real request.
+ */
 export function warmUpBackend(): void {
   const attempt = () => {
     fetch(`${API_BASE}/`)

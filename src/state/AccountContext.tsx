@@ -1,18 +1,29 @@
+/**
+ * Auth session state — JWT token (Keychain/Keystore-backed via
+ * secureStorage.ts) + email + remaining generation credits, polled from
+ * the backend every 30s while logged in.
+ */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { fetchUsage, login as apiLogin, signup as apiSignup, clearSession, saveSession } from '../lib/client'
 import { loadString, saveString, remove, STORAGE_KEYS } from '../lib/storage'
 import { loadToken } from '../lib/secureStorage'
 
 interface AccountContextValue {
+  /** JWT bearer token, or '' if not signed in. */
   token: string
   email: string
+  /** Convenience for `!!token`. */
   isAuthed: boolean
+  /** True once the persisted session has been read from SecureStore. */
   isHydrated: boolean
+  /** Remaining AI-generation credits, or null before the first successful fetch. */
   remaining: number | null
+  /** Re-fetches `remaining` from the backend. Also called on an interval while logged in. */
   refreshRemaining: () => Promise<void>
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string) => Promise<void>
   logout: () => void
+  /** Persists a token+email pair and updates state. Used by login/signup internally. */
   setSessionFromToken: (token: string, email: string) => Promise<void>
 }
 
@@ -20,6 +31,7 @@ const AccountContext = createContext<AccountContextValue | null>(null)
 
 const POLL_INTERVAL_MS = 30_000
 
+/** Provides auth/session state to the whole app — wrap it around everything in `src/app/_layout.tsx`. */
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState('')
   const [email, setEmail] = useState('')
@@ -27,6 +39,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [remaining, setRemaining] = useState<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Read the persisted session once on mount (AsyncStorage/SecureStore have
+  // no sync API — see CLAUDE.md's "Async storage" section for why this
+  // can't be a lazy useState initializer the way the web app's version was).
   useEffect(() => {
     let cancelled = false
     Promise.all([loadToken(), loadString(STORAGE_KEYS.userEmail)]).then(([savedToken, savedEmail]) => {
@@ -52,6 +67,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setEmail(nextEmail)
   }, [])
 
+  /** Logs in against the backend and persists the resulting session. */
   const login = useCallback(
     async (emailInput: string, password: string) => {
       const res = await apiLogin(emailInput, password)
@@ -60,6 +76,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [setSessionFromToken]
   )
 
+  /** Creates an account and persists the resulting session. */
   const signup = useCallback(
     async (emailInput: string, password: string) => {
       const res = await apiSignup(emailInput, password)
@@ -68,6 +85,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [setSessionFromToken]
   )
 
+  /** Clears the session everywhere — SecureStore, AsyncStorage, and React state. */
   const logout = useCallback(() => {
     void clearSession()
     void remove(STORAGE_KEYS.userEmail)
@@ -86,6 +104,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [token])
 
+  // Starts polling once both hydration is done and a token exists — gating
+  // on isHydrated (not just mount) avoids firing a doomed request before
+  // the persisted token has even been read back.
   useEffect(() => {
     if (!isHydrated || !token) return
     refreshRemaining()
@@ -104,6 +125,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Reads auth/session state — must be called under an `AccountProvider`. */
 export function useAccount() {
   const ctx = useContext(AccountContext)
   if (!ctx) throw new Error('useAccount must be used within AccountProvider')

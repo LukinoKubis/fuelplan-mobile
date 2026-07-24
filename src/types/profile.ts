@@ -3,6 +3,7 @@ export type MacroMode = 'manual' | 'calc'
 export type GoalMode = 'preset' | 'target'
 export type Sex = 'male' | 'female'
 
+/** The 4-step survey's accumulated answers — drives both macro calculation and the generate-request prompt. */
 export interface Profile {
   mode: MacroMode
   name: string
@@ -33,6 +34,7 @@ export interface Profile {
   mFat: string
 }
 
+/** Default profile a fresh survey starts from. */
 export const EMPTY_PROFILE: Profile = {
   mode: 'manual',
   name: '',

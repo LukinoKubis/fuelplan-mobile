@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 const TOKEN_KEY = 'fp_token'
 const isWeb = Platform.OS === 'web'
 
+/** Reads the persisted JWT (Keychain/Keystore on native, AsyncStorage fallback on web). */
 export async function loadToken(): Promise<string | null> {
   try {
     return isWeb ? await AsyncStorage.getItem(TOKEN_KEY) : await SecureStore.getItemAsync(TOKEN_KEY)
@@ -23,6 +24,7 @@ export async function loadToken(): Promise<string | null> {
   }
 }
 
+/** Persists the JWT securely. */
 export async function saveToken(value: string): Promise<void> {
   try {
     if (isWeb) await AsyncStorage.setItem(TOKEN_KEY, value)
@@ -32,6 +34,7 @@ export async function saveToken(value: string): Promise<void> {
   }
 }
 
+/** Deletes the persisted JWT (logout). */
 export async function removeToken(): Promise<void> {
   try {
     if (isWeb) await AsyncStorage.removeItem(TOKEN_KEY)

@@ -1,10 +1,10 @@
-// Client-side push registration. Requires: (1) this project linked to an
-// EAS project (getExpoPushTokenAsync needs a projectId — not set up yet,
-// see M6), (2) FCM v1 credentials uploaded to EAS for Android delivery,
-// (3) an APNs push key for iOS delivery (needs Apple Developer Program
-// enrollment). None of those exist yet — every function here fails soft
-// (returns null / false, never throws to the caller) so the app works
-// fine with push simply unavailable until that infra is in place.
+// Client-side push registration. This project is now linked to EAS (see
+// app.json's extra.eas.projectId), so getExpoPushTokenAsync() can resolve
+// a real token — but delivery still needs FCM v1 credentials uploaded to
+// EAS for Android and an APNs push key for iOS (needs Apple Developer
+// Program enrollment), neither of which exist yet. Every function here
+// fails soft (returns null/false, never throws) so the app works fine
+// with push simply unavailable until that infra is in place.
 // This is the native implementation — see pushNotifications.web.ts for why
 // a separate web file exists (expo-notifications has no web build at all).
 import { Platform } from 'react-native'
@@ -13,6 +13,12 @@ import * as Notifications from 'expo-notifications'
 import Constants from 'expo-constants'
 import { API_BASE, getToken } from './client'
 
+/**
+ * Requests notification permission (and sets up the default Android
+ * channel) then resolves an Expo push token, or null if permission was
+ * denied, this isn't a real device, or the token request itself fails
+ * (e.g. missing delivery credentials).
+ */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (!Device.isDevice) return null // push tokens aren't meaningful on simulators/web
 
@@ -46,6 +52,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 }
 
+/** Registers a push token with the backend for the signed-in user. */
 export async function subscribePush(token: string): Promise<boolean> {
   try {
     const authToken = await getToken()
@@ -60,6 +67,7 @@ export async function subscribePush(token: string): Promise<boolean> {
   }
 }
 
+/** Removes a push token from the backend (Settings' toggle-off path). */
 export async function unsubscribePush(token: string): Promise<boolean> {
   try {
     const authToken = await getToken()

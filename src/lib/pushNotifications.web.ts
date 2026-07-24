@@ -7,14 +7,17 @@
 // real pushNotifications.ts. Web isn't a real target for this app in
 // production; this only exists so `expo start --web` keeps working as a
 // dev-testing channel.
+/** Always null on web — see the module comment above. */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   return null
 }
 
+/** Always false on web — nothing to subscribe. */
 export async function subscribePush(_token: string): Promise<boolean> {
   return false
 }
 
+/** Always false on web — nothing to unsubscribe. */
 export async function unsubscribePush(_token: string): Promise<boolean> {
   return false
 }

@@ -1,3 +1,8 @@
+/**
+ * The generated meal plan plus everything tied to it — survey profile,
+ * shopping-list checks, eaten-meal toggles, favorited meals. Persisted to
+ * AsyncStorage per-slice (see the useEffects in `PlanProvider` below).
+ */
 import { createContext, useCallback, useContext, useEffect, useReducer, useState, type ReactNode } from 'react'
 import type { Plan } from '../types/plan'
 import { EMPTY_PROFILE, type Profile } from '../types/profile'
@@ -35,9 +40,11 @@ const INITIAL_STATE: PlanState = {
   favorites: [],
 }
 
-// Pure reducer — no storage side effects here (AsyncStorage is async, a
-// reducer can't be). Persistence happens via the useEffects below instead,
-// keyed off the specific state slices that changed.
+/**
+ * Pure reducer — no storage side effects here (AsyncStorage is async, a
+ * reducer can't be). Persistence happens via the useEffects below instead,
+ * keyed off the specific state slices that changed.
+ */
 function reducer(state: PlanState, action: Action): PlanState {
   switch (action.type) {
     case 'HYDRATE':
@@ -70,21 +77,28 @@ function reducer(state: PlanState, action: Action): PlanState {
 
 interface PlanContextValue extends PlanState {
   isHydrated: boolean
+  /** Replaces the whole plan (a fresh generation or a restored history entry). Resets shopChecks/eaten. */
   setPlan: (plan: Plan, userName: string, planName?: string) => void
   setPlanName: (planName: string) => void
+  /** Clears the plan (kept for "Full Reset" in Settings) — profile/favorites survive. */
   clearPlan: () => void
+  /** Merges a partial patch into the survey profile. */
   setProfile: (profile: Partial<Profile>) => void
   toggleShopCheck: (id: string) => void
   toggleEaten: (id: string) => void
   toggleFavorite: (name: string) => void
+  /** Clears all eaten-meal state — "Reset Week Tracking" in Settings. */
   resetEaten: () => void
+  /** Clears all shopping-list check state — "Reset Shopping List" in Settings. */
   resetShopChecks: () => void
+  /** True while the survey/edit-profile flow should replace the Fuel tab's normal view. */
   surveyMode: boolean
   setSurveyMode: (value: boolean) => void
 }
 
 const PlanContext = createContext<PlanContextValue | null>(null)
 
+/** Provides plan/profile state to the whole app — wrap it around everything in `src/app/_layout.tsx`. */
 export function PlanProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE)
   const [surveyMode, setSurveyMode] = useState(false)
@@ -187,6 +201,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Reads plan/profile state — must be called under a `PlanProvider`. */
 export function usePlan() {
   const ctx = useContext(PlanContext)
   if (!ctx) throw new Error('usePlan must be used within PlanProvider')
