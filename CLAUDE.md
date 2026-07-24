@@ -170,21 +170,61 @@ file automatically for web builds, so every caller just imports from
 breaks `expo start --web`, suspect this same pattern (no web entry at all,
 not just a stub) before assuming the import itself is wrong.
 
-## M5 status: code done, infra blocked
-The client (`src/lib/pushNotifications.ts`, Settings' toggle) and backend
-(`claude-backend`'s swap to `expo-server-sdk`) are both written and
-verified as far as this environment allows — typecheck clean, backend
-starts and serves cleanly, Settings renders the toggle correctly (in its
-"Off"/not-configured state) with no crashes. What's **not** done, and
-can't be from here: `getExpoPushTokenAsync()` needs this project linked to
-an EAS project (`eas init` — not run yet, see M6), Android delivery needs
-FCM v1 credentials from a Firebase project (doesn't exist — needs the
-user's interactive Google account/console access), iOS delivery needs an
-APNs push key (needs Apple Developer Program enrollment, also not done
-yet). None of these are things an agent can complete unattended. The
-actual "a real device receives a test push" milestone acceptance criterion
-is on hold until the user does the EAS/Firebase/Apple Developer setup
-(or delegates specific steps back with credentials/access).
+## M5 status: Android done and verified end-to-end; iOS blocked on Apple enrollment
+`eas init` is done (`extra.eas.projectId` in `app.json`), the user created
+a Firebase project and registered `fit.fuelplan.app`, and the FCM v1
+service-account key is uploaded to EAS credentials (see "Push
+notifications" below for how — the CLI's `eas credentials` flow is
+interactive-only, so this was done via direct GraphQL calls).
+
+**Verified for real, not just typechecked**: with no physical device
+available, a local Android emulator was set up (Android SDK + AVD,
+`google_apis_playstore` system image, boots as a real emulator window)
+specifically to test this. Full chain confirmed working: Settings' Weekly
+Summary toggle → real `getExpoPushTokenAsync()` token → registered with
+the backend → stored in Redis → sent via Expo's push API → delivered
+through Firebase FCM v1 → arrives on-device, both backgrounded and in the
+foreground (see the `pushNotifications.ts`/`setNotificationHandler` note
+below — foreground delivery needed a real fix, not just a config check).
+
+**iOS is still blocked** on an APNs push key, which needs Apple Developer
+Program enrollment (deferred by the user, cost/timeline reasons — same as
+the EAS/store-submission blockers in M6).
+
+## expo-notifications drops foreground pushes unless you configure a handler
+By default, a push that arrives while the app is in the foreground is
+**silently discarded** — no banner, no error, nothing — unless
+`Notifications.setNotificationHandler(...)` is called somewhere that runs
+on app start. `src/lib/pushNotifications.ts` sets one at module scope
+(imported from `_layout.tsx` via the Settings toggle path, so it runs
+early enough). **Real bug hit and fixed while verifying M5**: this was
+missing entirely — a background test push worked, an otherwise-identical
+foreground one vanished. If a future push type needs different
+foreground behavior (e.g. suppress a banner for some notification
+category), change the handler's return value, don't remove it.
+
+## Testing push (or anything native-only) without a physical device
+This dev environment has no phone and the user's phone is iOS (App
+Store/EAS builds for iOS are blocked on Apple enrollment, so it can't run
+a dev build anyway). For Android, a local emulator is a real substitute,
+not just a UI-only stand-in — set up once via the command-line Android
+SDK tools (`sdkmanager` for `platform-tools`/`emulator`/a
+`system-images;android-35;google_apis_playstore;x86_64` image,
+`avdmanager create avd`), then `emulator -avd <name>` boots a real window.
+**Must use a `google_apis_playstore` (not plain `google_apis`) image** —
+it has real Play Services, which is what makes FCM push actually work,
+not just simulate. Confirmed empirically: `Device.isDevice` (from
+`expo-device`) reports `false` on this emulator the same as it would on
+an iOS simulator, but unlike an iOS simulator it **does** receive real
+FCM pushes — see the `Device.isDevice` gate in `pushNotifications.ts`,
+which now only excludes iOS for this reason. `adb` can install an EAS
+build APK directly (`adb install -r foo.apk`), simulate an OS share via
+`adb shell am start -a android.intent.action.SEND -t text/plain --es
+android.intent.extra.TEXT '<url>'` (used to verify M4 without an actual
+TikTok app), and read the real Redis-stored push token to send a real
+test push directly through Expo's API — no need to reconstruct the
+user's password to hit `requireAuth` endpoints for read-only verification
+like this.
 
 ## M6 status: polish done, EAS/store submission blocked
 Keyboard-avoidance audit done (`SurveyFlow.tsx`'s footer was
