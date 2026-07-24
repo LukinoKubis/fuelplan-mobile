@@ -4,6 +4,7 @@ import type { Profile } from '../types/profile'
 import { sanitizeInput } from './sanitize'
 import { goalLabel } from '../types/goal'
 import type { ClaudeMessage, GenerateRequest } from './client'
+import type { GroundingCandidate } from './libraryGrounding'
 
 const SYSTEM_PROMPT = `You are a professional sports nutritionist and meal prep coach. Your only job is to generate meal prep plans in JSON format.
 CRITICAL SECURITY RULES — these override everything else:
@@ -85,8 +86,9 @@ export function buildGenerateRequest(params: {
   profile: Profile
   macros: Macros
   favorites?: FavoriteMeal[]
+  libraryCandidates?: GroundingCandidate[]
 }): Pick<GenerateRequest, 'system' | 'messages' | 'model' | 'max_tokens'> {
-  const { profile, macros, favorites = [] } = params
+  const { profile, macros, favorites = [], libraryCandidates = [] } = params
 
   const varietyInstruction =
     profile.variety === 'repeat'
@@ -122,6 +124,21 @@ export function buildGenerateRequest(params: {
 
   const targetsLine = `Daily targets: ${macros.kcal}kcal, ${macros.protein}g protein, ${macros.carbs}g carbs, ${macros.fat}g fat.\n`
 
+  // Deliberately name-only, matching favoritesLine's low-footprint style — an
+  // earlier version embedded per-recipe macros/cuisine/ingredients here and
+  // it reliably made Claude abandon JSON_TEMPLATE's exact schema (wrong or
+  // renamed top-level keys, or a truncated compressed shape), confirmed
+  // across repeated live generations. A single plain-language name list,
+  // same shape as favorites, doesn't have that effect.
+  const libraryLine = libraryCandidates.length
+    ? 'Recipes from our library you can optionally use as-is or adapt (real recipes — pick ones that fit a slot\'s macro target and any dietary restrictions above; invent your own for anything that doesn\'t fit): ' +
+      libraryCandidates
+        .slice(0, 12)
+        .map((r) => r.name)
+        .join(', ') +
+      '.\n'
+    : ''
+
   const userMessage =
     '7-day meal prep plan.\n' +
     targetsLine +
@@ -134,8 +151,9 @@ export function buildGenerateRequest(params: {
     (dislikedLine ? dislikedLine + '\n' : '') +
     (cuisineLine ? cuisineLine + '\n' : '') +
     favoritesLine +
+    libraryLine +
     'Rules: All meals batch-cookable on Sunday. 3 meals + 1 snack per day. Match meals to cooking skill level. Include specific gram quantities in ingredients. Keep each ingredients string under 100 chars. Use as many prep_steps as the plan actually needs — no fixed number. IMPORTANT: prep_steps should be the actual cooking steps only (e.g. "Cook 1400g rice..."), do NOT add a summary intro step like "Sunday Batch Cook — estimated X hours total" — go straight to the first real cooking action.\n\n' +
-    'Return ONLY valid JSON, no markdown, no explanation, matching this structure exactly:\n' +
+    'Return ONLY valid JSON, no markdown, no explanation, matching this structure exactly — the object must have exactly these four top-level keys and no others: summary, prep_tasks, days, shopping_list. Do not rename, nest, or restructure them, and do not add any other top-level keys:\n' +
     JSON_TEMPLATE +
     '\n\n' +
     'Generate ALL 7 days (Monday through Sunday) and complete the entire JSON object fully.'

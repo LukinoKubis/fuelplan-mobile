@@ -12,6 +12,7 @@ import { usePlan } from '../../state/PlanContext'
 import { useAccount } from '../../state/AccountContext'
 import { ApiError, postClaude } from '../../lib/client'
 import { buildGenerateRequest } from '../../lib/generatePrompt'
+import { getGroundingCandidates } from '../../lib/libraryGrounding'
 import { resolveProfileMacros } from '../../lib/macros'
 import type { Plan } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'
@@ -63,7 +64,8 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     abortRef.current = new AbortController()
 
     try {
-      const { system, messages, model, max_tokens } = buildGenerateRequest({ profile, macros, favorites })
+      const libraryCandidates = await getGroundingCandidates(profile.cuisines)
+      const { system, messages, model, max_tokens } = buildGenerateRequest({ profile, macros, favorites, libraryCandidates })
       const response = await postClaude({ model, max_tokens, system, messages }, abortRef.current.signal)
       const rawText = response.content[0]?.text || ''
       const cleaned = rawText

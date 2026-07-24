@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useReducer, useState
 import type { Meal, Plan } from '../types/plan'
 import { EMPTY_PROFILE, type Profile } from '../types/profile'
 import { loadJSON, remove, saveJSON, STORAGE_KEYS } from '../lib/storage'
+import { normalizeShoppingList } from '../lib/normalizePlan'
 
 interface PlanState {
   plan: Plan | null
@@ -51,7 +52,14 @@ function reducer(state: PlanState, action: Action): PlanState {
     case 'HYDRATE':
       return action.state
     case 'SET_PLAN':
-      return { ...state, plan: action.plan, userName: action.userName, planName: action.planName ?? '', shopChecks: {}, eaten: {} }
+      return {
+        ...state,
+        plan: { ...action.plan, shopping_list: normalizeShoppingList(action.plan.shopping_list) },
+        userName: action.userName,
+        planName: action.planName ?? '',
+        shopChecks: {},
+        eaten: {},
+      }
     case 'SET_PLAN_NAME':
       return { ...state, planName: action.planName }
     case 'CLEAR_PLAN':
