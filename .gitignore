@@ -33,6 +33,14 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase — this repo is public. google-services.json ships inside the APK
+# anyway but doesn't belong in a public repo; the admin-sdk service account
+# key is a REAL secret (grants push-send permission) and must never be
+# committed anywhere. EAS builds still get google-services.json via
+# .easignore (which overrides .gitignore for the EAS upload).
+google-services.json
+*firebase-adminsdk*.json
+
 # typescript
 *.tsbuildinfo
 

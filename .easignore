@@ -1,0 +1,51 @@
+# When this file exists, EAS Build uses it INSTEAD of .gitignore to decide
+# what gets uploaded. It mirrors .gitignore with ONE deliberate difference:
+# google-services.json is NOT listed here, because the Android build needs
+# it (app.json's android.googleServicesFile) while the public git repo must
+# not contain it. Keep the two files in sync when adding new ignore rules.
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# Firebase admin-sdk service account key — a real secret; uploaded to EAS
+# credentials separately, never as part of the project archive.
+*firebase-adminsdk*.json

@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "fit.fuelplan.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0e0f11",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
