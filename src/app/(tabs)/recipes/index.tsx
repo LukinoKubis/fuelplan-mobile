@@ -49,7 +49,8 @@ export default function RecipesListScreen() {
             >
               <Text className="mb-1 text-sm font-semibold" numberOfLines={1} style={{ color: c.text }}>{recipe.name}</Text>
               <Text className="text-xs" style={{ color: c.muted }}>
-                {recipe.macros?.kcal ?? 0} kcal · {recipe.macros?.protein ?? 0}g protein · {recipe.ingredients.length} ingredient{recipe.ingredients.length === 1 ? '' : 's'}
+                {Math.round((recipe.macros?.kcal ?? 0) / (recipe.servings && recipe.servings > 0 ? recipe.servings : 1))} kcal/serving
+                {recipe.servings && recipe.servings > 1 ? ` (serves ${recipe.servings})` : ''} · {recipe.ingredients.length} ingredient{recipe.ingredients.length === 1 ? '' : 's'}
               </Text>
             </Pressable>
           ))}

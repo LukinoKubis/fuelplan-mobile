@@ -18,6 +18,29 @@ const TIME_SLOTS = [
   { value: 'Dinner 19:30', label: 'Dinner' },
 ]
 
+// Someone cutting and someone bulking want opposite things from "improve
+// this recipe" — a single free-text box makes people who don't already
+// know the right nutrition vocabulary guess. These fill the instruction
+// field (still editable, still reviewed before sending) rather than
+// firing immediately, so it stays transparent what's being asked for.
+const GOAL_PRESETS = [
+  { label: 'Cutting', instruction: 'I’m cutting — increase the protein-to-calorie ratio and reduce total calories where you can, without shrinking the portion or making it feel like less food.' },
+  { label: 'Bulking', instruction: 'I’m bulking — increase total calories while keeping protein high, favoring energy-dense additions (healthy fats, more carbs) over just more volume.' },
+  { label: 'Higher Protein', instruction: 'Increase protein as much as reasonably possible while keeping calories about the same as they are now.' },
+  { label: 'Lower Carb', instruction: 'Reduce carbohydrates, swapping starchy ingredients for lower-carb alternatives, while keeping protein and calories similar to now.' },
+]
+
+/** Recipe.macros is always the WHOLE recipe as extracted — divide by servings (default 1) to get what one portion actually looks like. */
+function perServingMacros(recipe: Pick<Recipe, 'macros' | 'servings'>) {
+  const servings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1
+  return {
+    kcal: Math.round(recipe.macros.kcal / servings),
+    protein: Math.round(recipe.macros.protein / servings),
+    carbs: Math.round(recipe.macros.carbs / servings),
+    fat: Math.round(recipe.macros.fat / servings),
+  }
+}
+
 /**
  * Recipe detail — read-only view of a saved recipe plus Add to Plan,
  * Improve for Macros, and Delete. Prefers the recipe passed as a route
@@ -117,13 +140,17 @@ export default function RecipeDetailScreen() {
 
   function handleAddToPlan() {
     if (!recipe || !addDay) return
+    // One "Add to Plan" = one meal = one serving, not the whole batch —
+    // recipe.macros is the full recipe total, which for a multi-portion
+    // dish would massively overstate a single meal's macros.
+    const per = perServingMacros(recipe)
     addMealToDay(addDay, {
       time: addSlot,
       name: recipe.name,
-      protein: recipe.macros.protein,
-      carbs: recipe.macros.carbs,
-      fat: recipe.macros.fat,
-      kcal: recipe.macros.kcal,
+      protein: per.protein,
+      carbs: per.carbs,
+      fat: per.fat,
+      kcal: per.kcal,
       ingredients: recipe.ingredients.map((i) => (i.qty ? `${i.qty} ${i.name}` : i.name)).join(', '),
     })
     setAddDone(true)
@@ -160,6 +187,8 @@ export default function RecipeDetailScreen() {
     )
   }
 
+  const recipeServing = perServingMacros(recipe)
+
   return (
     <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: recipe.name }} />
@@ -175,14 +204,24 @@ export default function RecipeDetailScreen() {
         <View className="mb-3" />
       )}
 
-      <View className="mb-5 flex-row gap-2">
+      <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>
+        Per serving{recipe.servings && recipe.servings > 1 ? ` · serves ${recipe.servings}` : ''}
+      </Text>
+      <View className="mb-2 flex-row gap-2">
         {(['kcal', 'protein', 'carbs', 'fat'] as const).map((key) => (
           <View key={key} className="flex-1 items-center rounded-xl border py-2.5" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
-            <Text className="text-sm font-bold" style={{ color: c.text }}>{recipe.macros[key]}</Text>
+            <Text className="text-sm font-bold" style={{ color: c.text }}>{recipeServing[key]}</Text>
             <Text className="text-[10px] uppercase" style={{ color: c.muted }}>{key}</Text>
           </View>
         ))}
       </View>
+      {recipe.servings && recipe.servings > 1 ? (
+        <Text className="mb-5 text-xs" style={{ color: c.muted }}>
+          Whole recipe (all {recipe.servings} servings): {recipe.macros.kcal} kcal · {recipe.macros.protein}g protein · {recipe.macros.carbs}g carbs · {recipe.macros.fat}g fat
+        </Text>
+      ) : (
+        <View className="mb-5" />
+      )}
 
       <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Ingredients</Text>
       <View className="mb-5 gap-1.5">
@@ -215,6 +254,9 @@ export default function RecipeDetailScreen() {
                 <PillGroup options={(plan?.days ?? []).map((d) => ({ value: d.day, label: d.day }))} value={addDay} onChange={setAddDay} />
                 <Text className="text-xs font-semibold" style={{ color: c.muted }}>When</Text>
                 <PillGroup options={TIME_SLOTS} value={addSlot} onChange={setAddSlot} />
+                <Text className="text-xs" style={{ color: c.muted }}>
+                  Adds 1 serving — {recipeServing.kcal} kcal, {recipeServing.protein}g protein, {recipeServing.carbs}g carbs, {recipeServing.fat}g fat.
+                </Text>
                 <Pressable
                   onPress={handleAddToPlan}
                   disabled={!addDay}
@@ -238,11 +280,25 @@ export default function RecipeDetailScreen() {
           <View className="mt-3 gap-3">
             {!improvedDraft ? (
               <>
+                <Text className="text-xs font-semibold" style={{ color: c.muted }}>Goal (optional shortcut — edits the text below)</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {GOAL_PRESETS.map((preset) => (
+                    <Pressable
+                      key={preset.label}
+                      onPress={() => setInstruction(preset.instruction)}
+                      className="rounded-full border px-3 py-1.5"
+                      style={{ borderColor: c.border, backgroundColor: c.bg }}
+                    >
+                      <Text className="text-xs font-semibold" style={{ color: c.text }}>{preset.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <TextInput
                   value={instruction}
                   onChangeText={setInstruction}
                   placeholder="e.g. more protein, fewer carbs"
                   placeholderTextColor={c.muted}
+                  multiline
                   className="rounded-xl border px-3 py-2.5 text-sm"
                   style={{ borderColor: c.border, backgroundColor: c.bg, color: c.text }}
                 />
@@ -259,11 +315,13 @@ export default function RecipeDetailScreen() {
               </>
             ) : (
               <>
-                <Text className="text-xs font-semibold" style={{ color: c.muted }}>New macros (per recipe)</Text>
+                <Text className="text-xs font-semibold" style={{ color: c.muted }}>
+                  New macros — per serving{improvedDraft.servings && improvedDraft.servings > 1 ? ` (serves ${improvedDraft.servings})` : ''}
+                </Text>
                 <View className="flex-row gap-2">
                   {(['kcal', 'protein', 'carbs', 'fat'] as const).map((key) => (
                     <View key={key} className="flex-1 items-center rounded-xl border py-2" style={{ borderColor: c.border, backgroundColor: c.bg }}>
-                      <Text className="text-sm font-bold" style={{ color: c.lime }}>{improvedDraft.macros[key]}</Text>
+                      <Text className="text-sm font-bold" style={{ color: c.lime }}>{perServingMacros(improvedDraft)[key]}</Text>
                       <Text className="text-[9px] uppercase" style={{ color: c.muted }}>{key}</Text>
                     </View>
                   ))}

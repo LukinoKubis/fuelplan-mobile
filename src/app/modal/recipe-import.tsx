@@ -15,13 +15,14 @@ type Stage = 'paste' | 'preview'
 const EMPTY_MACROS = { kcal: 0, protein: 0, carbs: 0, fat: 0 }
 
 /**
- * Turns pasted (or, from M4 on, share-sheet-handed-off) recipe text into a
- * structured, editable Recipe and saves it to the user's recipe box. Always
- * shows the raw-text field first — this is the permanent landing screen for
- * both manual paste and native share-intent, not a scaffold to delete once
- * share-intent lands. Accepts optional `text`/`url` route params so a
- * future share-intent hand-off can prefill this screen without any changes
- * here.
+ * Turns pasted (or share-sheet-handed-off) recipe text into a structured,
+ * editable Recipe and saves it to the user's recipe box. Always shows the
+ * raw-text field first — this is the permanent landing screen for manual
+ * paste, manual URL entry, and native share-intent alike. The URL field is
+ * editable either way: `params.url` prefills it from a real OS share, but
+ * a user can just as well paste a link in by hand (e.g. copied from
+ * TikTok without using its share sheet), which drives the exact same
+ * TikTok-oEmbed-prefill / Instagram-paste-prompt logic.
  */
 export default function RecipeImportScreen() {
   const c = useThemeColors()
@@ -31,7 +32,7 @@ export default function RecipeImportScreen() {
 
   const [stage, setStage] = useState<Stage>('paste')
   const [rawText, setRawText] = useState(params.text || '')
-  const [sourceUrl] = useState(params.url || '')
+  const [sourceUrl, setSourceUrl] = useState(params.url || '')
   const [extracting, setExtracting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -46,9 +47,12 @@ export default function RecipeImportScreen() {
   // test call during planning). Instagram's oEmbed needs Meta App Review
   // for arbitrary posts and scraping is deliberately off the table, so
   // Instagram shares land with an empty field and a "paste the caption"
-  // prompt instead.
+  // prompt instead. Reacts to `sourceUrl` changes (not just mount) so a
+  // manually pasted TikTok link prefills the caption exactly like a
+  // share-intent hand-off does — guarded on the caption already being
+  // empty so it never clobbers something the user typed.
   useEffect(() => {
-    if (!isTikTok || params.text || rawText) return
+    if (!isTikTok || rawText.trim()) return
     let cancelled = false
     setPrefetching(true)
     fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(sourceUrl)}`)
@@ -66,7 +70,7 @@ export default function RecipeImportScreen() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [sourceUrl])
 
   /** Sends the pasted text to Claude, parses the structured recipe back out, and advances to the editable preview. */
   async function handleExtract() {
@@ -186,14 +190,31 @@ export default function RecipeImportScreen() {
             ? "Instagram doesn't share the caption with the post — open the post, copy the caption, and paste it below."
             : "Paste a recipe, a social caption, or just type what you remember — we'll turn it into a structured recipe with estimated macros."}
         </Text>
+        <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Link (optional)</Text>
+        <TextInput
+          value={sourceUrl}
+          onChangeText={setSourceUrl}
+          placeholder="Paste a TikTok or Instagram link…"
+          placeholderTextColor={c.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          className="mb-2 rounded-xl border px-3 py-2.5 text-sm"
+          style={{ borderColor: c.border, backgroundColor: c.bg2, color: c.text }}
+        />
         {sourceUrl ? (
-          <View className="mb-3 rounded-xl border px-3 py-2" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
-            <Text className="text-[11px] font-bold uppercase tracking-wide" style={{ color: c.muted }}>
-              Shared from {isTikTok ? 'TikTok' : isInstagram ? 'Instagram' : 'a link'}
-            </Text>
-            <Text className="text-xs" numberOfLines={1} style={{ color: c.blue }}>{sourceUrl}</Text>
-          </View>
-        ) : null}
+          <Text className="mb-3 text-xs" style={{ color: c.muted }}>
+            {isTikTok
+              ? prefetching
+                ? 'TikTok link — fetching the caption…'
+                : 'TikTok link — caption filled in below.'
+              : isInstagram
+                ? 'Instagram link — paste the caption below, it can’t be fetched automatically.'
+                : 'Link saved with this recipe.'}
+          </Text>
+        ) : (
+          <View className="mb-3" />
+        )}
         <TextInput
           autoFocus
           multiline
@@ -234,7 +255,26 @@ export default function RecipeImportScreen() {
         style={{ borderColor: c.border, backgroundColor: c.bg2, color: c.text }}
       />
 
-      <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Macros (per recipe)</Text>
+      <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Servings</Text>
+      <TextInput
+        value={String(draft.servings ?? '')}
+        onChangeText={(v) => {
+          const num = parseInt(v, 10)
+          patchDraft({ servings: v.trim() === '' ? undefined : Number.isFinite(num) && num > 0 ? num : draft.servings })
+        }}
+        placeholder="How many portions does this make?"
+        placeholderTextColor={c.muted}
+        keyboardType="number-pad"
+        className="mb-1 rounded-xl border px-3 py-2.5 text-sm"
+        style={{ borderColor: c.border, backgroundColor: c.bg2, color: c.text }}
+      />
+      <Text className="mb-4 text-xs" style={{ color: c.muted }}>
+        {!draft.servings || draft.servings <= 1
+          ? 'Leave blank or 1 if this is a single portion.'
+          : `That's about ${Math.round(draft.macros.kcal / draft.servings)} kcal per serving.`}
+      </Text>
+
+      <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Macros (whole recipe, all servings combined)</Text>
       <View className="mb-4 flex-row gap-2">
         {(['kcal', 'protein', 'carbs', 'fat'] as const).map((key) => (
           <View key={key} className="flex-1">
