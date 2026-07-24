@@ -26,12 +26,20 @@ export default function RecipesListScreen() {
     <View className="flex-1 bg-light-bg dark:bg-bg">
       <Header onOpenSettings={() => router.push('/modal/settings')} />
       <ScrollView contentContainerClassName="p-4">
-        <View className="mb-4 flex-row items-center justify-between">
+        <View className="mb-3 flex-row items-center justify-between">
           <Text className="font-display text-lg" style={{ color: c.text }}>Your Recipes</Text>
           <Pressable onPress={() => router.push('/modal/recipe-import')} className="rounded-lg bg-lime px-3 py-1.5">
             <Text className="text-xs font-extrabold text-bg">+ Add</Text>
           </Pressable>
         </View>
+
+        <Pressable
+          onPress={() => router.push('/(tabs)/recipes/library')}
+          className="mb-4 flex-row items-center justify-between rounded-xl border px-3.5 py-3"
+          style={{ borderColor: c.border, backgroundColor: c.bg2 }}
+        >
+          <Text className="text-sm font-semibold" style={{ color: c.text }}>Browse Recipe Library →</Text>
+        </Pressable>
 
         {recipes === null && <Text className="text-sm" style={{ color: c.muted }}>Loading…</Text>}
         {recipes?.length === 0 && (

@@ -8,6 +8,7 @@ import { useThemeColors } from '../../../lib/themeColors'
 import { ApiError, deleteRecipe, getRecipeList, postClaude, saveRecipe } from '../../../lib/client'
 import { buildImproveForMacrosRequest } from '../../../lib/recipePrompt'
 import { friendlyErrorMessage } from '../../../lib/errorMessage'
+import { perServingMacros } from '../../../lib/recipeMacros'
 import { usePlan } from '../../../state/PlanContext'
 import { PillGroup } from '../../../components/survey/Chips'
 import { RecipePhotoPicker } from '../../../components/shared/RecipePhotoPicker'
@@ -32,16 +33,6 @@ const GOAL_PRESETS = [
   { label: 'Lower Carb', instruction: 'Reduce carbohydrates, swapping starchy ingredients for lower-carb alternatives, while keeping protein and calories similar to now.' },
 ]
 
-/** Recipe.macros is always the WHOLE recipe as extracted — divide by servings (default 1) to get what one portion actually looks like. */
-function perServingMacros(recipe: Pick<Recipe, 'macros' | 'servings'>) {
-  const servings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1
-  return {
-    kcal: Math.round(recipe.macros.kcal / servings),
-    protein: Math.round(recipe.macros.protein / servings),
-    carbs: Math.round(recipe.macros.carbs / servings),
-    fat: Math.round(recipe.macros.fat / servings),
-  }
-}
 
 /**
  * Recipe detail — read-only view of a saved recipe plus Add to Plan,

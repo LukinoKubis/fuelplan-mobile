@@ -4,6 +4,7 @@
 // caller now awaits authHeaders() since that read is async.
 import type { HistoryEntryMeta, Macros, Plan } from '../types/plan'
 import type { Recipe } from '../types/recipe'
+import type { LibraryRecipe } from '../types/recipeLibrary'
 import { loadToken, saveToken, removeToken } from './secureStorage'
 
 /** Railway-hosted backend shared with the (now-frozen) web app — no local backend proxy. */
@@ -195,6 +196,28 @@ export async function deleteRecipe(recipeId: number): Promise<{ ok: boolean; rem
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ recipeId }),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/** Lists/searches the shared recipe library — every user reads the same admin-seeded catalog, filtered server-side. */
+export async function getRecipeLibrary(params?: { category?: string; search?: string }): Promise<{ recipes: LibraryRecipe[] }> {
+  const response = await fetch(`${API_BASE}/api/library/list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(params || {}),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/** Copies a library entry into the signed-in user's personal recipe box. */
+export async function addLibraryRecipeToMine(libraryId: number): Promise<{ ok: boolean; recipe: Recipe }> {
+  const response = await fetch(`${API_BASE}/api/library/add-to-my-recipes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ libraryId }),
   })
   if (!response.ok) return parseErrorResponse(response)
   return response.json()
