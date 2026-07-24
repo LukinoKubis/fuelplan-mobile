@@ -1,56 +1,61 @@
-# Welcome to your Expo app 👋
+# Fuelplan Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+AI-powered meal prep app — native iOS/Android port of the Fuelplan PWA, built for real App Store/Play Store distribution. Expo (managed) + React Native + TypeScript + NativeWind v4.
 
-## Get started
+> Migrated off `fuelplan-frontend` (the Vite/React PWA, now frozen) on
+> 2026-07-23 — PWAs can't do OS-level share-target integration or get
+> real store presence. See `CLAUDE.md` for the full architecture writeup,
+> porting gotchas, and known limitations — this file is the quick-start.
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+npm install
+npx expo start --web   # fastest loop for UI work — no device/emulator needed
+npx expo start          # real dev-client/Expo Go flow, needs a device or emulator
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+No local backend — the app always talks to the live Railway-hosted
+`claude-backend` (`API_BASE` in `src/lib/client.ts`). No `.env` needed for
+local dev.
 
-### Other setup steps
+```bash
+npx tsc --noEmit     # typecheck
+npx expo-doctor       # project health check
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Tech stack
 
-## Learn more
+- **Expo SDK 57 + Expo Router** (file-based routing, `src/app/`) + **React Native 0.86**, TypeScript throughout
+- **NativeWind v4** for styling — Tailwind utility classes, dark/light theme via `nativewind`'s `colorScheme`, not CSS variables (RN has none) — see `CLAUDE.md`'s "Design tokens"/"Theme switching" sections for the exact convention
+- **State**: plain React Context + `useReducer`/`useState`, no external state library — `ThemeContext`, `AccountContext`, `PlanContext` in `src/state/`, persisted to `@react-native-async-storage/async-storage` (the JWT specifically goes through `expo-secure-store`/Keychain instead)
+- **No router library beyond Expo Router** — bottom tabs (`<Tabs>`), an auth stack, and a modal route group, all file-based
+- Linked to **EAS** (`app.json`'s `extra.eas.projectId`) for builds/credentials; not yet submitted to either store
 
-To learn more about developing your project with Expo, look at the following resources:
+## Project structure
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+src/
+  app/            — Expo Router routes: _layout.tsx (root), (auth)/, (tabs)/, modal/
+  state/          — ThemeContext, AccountContext, PlanContext
+  lib/            — API client, prompt builders, storage helpers, misc utilities
+  types/          — shared TS types
+  components/     — layout/, fuel/, survey/, shared/
+```
 
-## Join the community
+Full detail (design-token conventions, async-storage hydration pattern,
+every real bug hit and fixed during the port, current milestone status) is
+in `CLAUDE.md` — written for AI-agent-driven development, but useful for a
+human onboarding too.
 
-Join our community of developers creating universal apps.
+## Building & deploying
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+eas build --profile development --platform android   # dev-client build, installable directly
+eas build --profile preview --platform android        # internal-testing build
+eas build --profile production --platform ios|android # store-bound build
+```
+
+No build has shipped yet — see `CLAUDE.md`'s milestone notes for what's
+blocking store submission (Apple Developer Program enrollment, Google Play
+Console, store listing assets).
