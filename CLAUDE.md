@@ -216,12 +216,14 @@ design pass, not more agent work:**
   the scaffold's generic placeholder.
 
 **Blocked on the user, same shape as M5's blockers:**
-- `eas login` + `eas init` — needs an Expo account, interactive login.
-- First EAS builds (`eas build`) — needs the above, plus this is the
-  point where Apple Developer Program enrollment ($99/yr, ~24-48h
-  identity verification) and Google Play Console ($25 one-time) actually
-  become load-bearing, not just "worth doing early" — see the migration
-  plan's cost/timeline notes.
+- ~~`eas login` + `eas init`~~ — done (project linked, `extra.eas.projectId`
+  in `app.json`; auth via `EXPO_TOKEN` env var, never written to a file).
+- First EAS build: the first-ever Android development build was kicked
+  off 2026-07-24 (`eas build --profile development --platform android`,
+  cloud-generated keystore, versionCode initialized to 1). Store-bound
+  builds are still gated on Apple Developer Program enrollment ($99/yr,
+  ~24-48h identity verification) and Google Play Console ($25 one-time)
+  — explicitly deferred by the user until the app is further along.
 - Store listing assets — privacy policy (needs a hosted URL, e.g. a page
   on fuelplan.fit), screenshots (need a real build running on a device or
   simulator, neither available here), Data Safety/App Privacy
@@ -263,7 +265,7 @@ design pass, not more agent work:**
 - `Onboarding` (web app's PWA-install-guide screen) was **not ported** —
   100% PWA-install-prompt content, not applicable natively.
 
-## Recipe box (Recipe M1-M3, done; M4 — native share-intent — pending)
+## Recipe box (Recipe M1-M4 code done; M4 on-device verification pending)
 Personal recipe library, separate from the AI-generated 7-day plan. No new
 AI-calling endpoint — extraction (`recipePrompt.ts`'s
 `buildExtractRecipeRequest`) and "Improve for Macros"
@@ -300,6 +302,24 @@ to a plan does not update the Haul tab's `shopping_list` (a separate flat
 AI-generated array, unrelated to `Recipe.ingredients`) — the "Added to
 {day}" confirmation says so explicitly. Regenerating the shopping list
 from recipe ingredients is future scope.
+
+**Share-intent (M4)**: `expo-share-intent` (config plugin in `app.json`:
+android `text/*` intent filter, iOS text/web-url activation rules).
+`ShareIntentProvider` is the outermost provider in `_layout.tsx`;
+`ShareIntentRedirect` (same file, inside `AppReadyGate` so navigation is
+mounted even on cold-start-from-a-share) pushes to
+`/modal/recipe-import?url=...&text=...`. Unlike `expo-notifications`,
+this package is web-safe out of the box (`requireOptionalNativeModule` +
+`useShareIntent` self-disables on web) — no `.web.ts` sibling needed,
+verified the web bundle still builds. TikTok shares auto-prefill the
+caption via TikTok's public oEmbed (`title` field carries the full
+caption — verified live against a real video; the fetch is CORS-blocked
+in the *browser* preview only, which doesn't apply to native fetch, and
+fails soft to manual paste). Instagram shares get a "copy the caption
+and paste it" prompt — no ToS-safe auto-fetch exists, scraping was
+deliberately rejected. **Share targets don't work in Expo Go or web** —
+testing the actual OS-level "share to Fuelplan" flow needs the EAS
+dev-client build installed on a real Android device.
 
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
