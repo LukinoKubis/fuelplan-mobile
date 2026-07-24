@@ -101,6 +101,7 @@ export default function SettingsScreen() {
       <View className="mb-4 gap-2">
         <SettingsAction icon={<BoltIcon />} title="Generate New Plan" desc="Keep your profile, get a fresh 7-day plan" onPress={() => { router.back(); router.push('/(tabs)/fuel') }} />
         <SettingsAction icon={<HistoryIcon />} iconColor={c.blue} title="My Plans" desc="Browse, restore or delete your saved plans" onPress={() => router.push('/modal/history')} />
+        <SettingsAction icon={<RecipeIcon />} iconColor={c.orange} title="Add a Recipe" desc="Paste a recipe or caption to save it to your recipe box" onPress={() => router.push('/modal/recipe-import')} />
       </View>
 
       <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Preferences</Text>
@@ -233,6 +234,17 @@ function TrashIcon() {
       <Path d="M10 11v6" />
       <Path d="M14 11v6" />
       <Path d="M9 6V4h6v2" />
+    </Svg>
+  )
+}
+function RecipeIcon() {
+  const c = useThemeColors()
+  return (
+    <Svg {...ICON_PROPS} stroke={c.orange}>
+      <Path d="M3 2v7c0 1.66 1.34 3 3 3v10" />
+      <Path d="M6 2v6" />
+      <Path d="M3 2v6" />
+      <Path d="M18 2c-2.5 2.5-3 5-3 8s.5 5.5 3 8v4" />
     </Svg>
   )
 }
