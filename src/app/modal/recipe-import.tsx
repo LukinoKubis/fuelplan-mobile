@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Line } from 'react-native-svg'
@@ -41,6 +41,15 @@ export default function RecipeImportScreen() {
   const [prefetching, setPrefetching] = useState(false)
   const [videoReading, setVideoReading] = useState(false)
   const [videoNote, setVideoNote] = useState('')
+  // Spoken transcript + on-screen text feed the AI extraction call (see
+  // handleExtract below) but are deliberately never shown in the visible
+  // text field — a transcript is often just song lyrics or unrelated
+  // chatter, which looks broken sitting next to the actual caption. Only
+  // the caption/description (rawText) is ever user-visible.
+  const [videoContext, setVideoContext] = useState('')
+  const [oEmbedDone, setOEmbedDone] = useState(false)
+  const [videoReadDone, setVideoReadDone] = useState(false)
+  const warnedEmptyRef = useRef(false)
   const [igReading, setIgReading] = useState(false)
   const [igFailed, setIgFailed] = useState(false)
 
@@ -57,9 +66,14 @@ export default function RecipeImportScreen() {
   // share-intent hand-off does — guarded on the caption already being
   // empty so it never clobbers something the user typed.
   useEffect(() => {
-    if (!isTikTok || rawText.trim()) return
+    if (!isTikTok) return
+    if (rawText.trim()) {
+      setOEmbedDone(true) // already has text (manual paste/share-intent) — nothing to fetch, but still "done" for the empty-video check below
+      return
+    }
     let cancelled = false
     setPrefetching(true)
+    setOEmbedDone(false)
     fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(sourceUrl)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { title?: string } | null) => {
@@ -69,7 +83,10 @@ export default function RecipeImportScreen() {
         /* prefill is best-effort — the user can always paste manually */
       })
       .finally(() => {
-        if (!cancelled) setPrefetching(false)
+        if (!cancelled) {
+          setPrefetching(false)
+          setOEmbedDone(true)
+        }
       })
     return () => {
       cancelled = true
@@ -80,21 +97,24 @@ export default function RecipeImportScreen() {
   // Reads spoken audio + on-screen text overlays the caption alone doesn't
   // cover — a real scrape (see client.ts/backend's videoExtract.ts), not
   // an instant call, so it runs in parallel with the oEmbed caption fetch
-  // above and APPENDS to whatever's already in the field rather than
-  // waiting for or overwriting it. Best-effort: a failure here just means
-  // the caption (if any) is still there to work with, never blocks pasting/editing.
+  // above. Stored separately in videoContext (used only by handleExtract's
+  // AI call below), never appended into the visible rawText field — a
+  // transcript is often just song lyrics or unrelated chatter, and showing
+  // that raw next to the actual caption looks broken. Best-effort: a
+  // failure here just means the caption (if any) is still there to work
+  // with, never blocks pasting/editing.
   useEffect(() => {
     if (!isTikTok) return
     let cancelled = false
     setVideoReading(true)
     setVideoNote('')
+    setVideoReadDone(false)
+    warnedEmptyRef.current = false
     extractVideoText(sourceUrl)
       .then((result) => {
         if (cancelled) return
         const parts = [result.transcript, result.onScreenText].map((s) => s.trim()).filter(Boolean)
-        if (parts.length) {
-          setRawText((prev) => (prev.trim() ? prev.trim() + '\n\n' + parts.join('\n\n') : parts.join('\n\n')))
-        }
+        setVideoContext(parts.join('\n\n'))
         if (result.warnings.length) setVideoNote(result.warnings.join(' '))
       })
       .catch((err) => {
@@ -102,13 +122,32 @@ export default function RecipeImportScreen() {
         setVideoNote(err instanceof ApiError ? err.message : 'Could not read the video — paste or edit the text manually instead.')
       })
       .finally(() => {
-        if (!cancelled) setVideoReading(false)
+        if (!cancelled) {
+          setVideoReading(false)
+          setVideoReadDone(true)
+        }
       })
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceUrl])
+
+  // Once both the caption fetch and the video read have settled, warn once
+  // if there was genuinely nothing to work with anywhere (no caption, no
+  // transcript, no on-screen text) — some videos are just B-roll of someone
+  // cooking with no readable text at all, and silently leaving an empty
+  // field is confusing. Doesn't block manual typing — just an early heads-up.
+  useEffect(() => {
+    if (!isTikTok || !oEmbedDone || !videoReadDone || warnedEmptyRef.current) return
+    if (!rawText.trim() && !videoContext.trim()) {
+      warnedEmptyRef.current = true
+      Alert.alert(
+        "Couldn't read this video",
+        "No caption and nothing readable in the video itself — this one might just be B-roll with no recipe text. Try pasting the recipe manually, or a different TikTok link."
+      )
+    }
+  }, [isTikTok, oEmbedDone, videoReadDone, rawText, videoContext])
 
   // Instagram's post page carries the caption in its og:description meta
   // tag, injected client-side by Instagram's own app — same
@@ -145,7 +184,11 @@ export default function RecipeImportScreen() {
     setError('')
     setExtracting(true)
     try {
-      const { system, messages, model, max_tokens } = buildExtractRecipeRequest({ rawText, sourceUrl: sourceUrl || undefined })
+      // videoContext (transcript + on-screen text) is never shown in the
+      // text field, but still helps extraction when it's genuinely
+      // recipe-related — appended here, not in rawText itself.
+      const combinedText = videoContext.trim() ? rawText.trim() + '\n\n' + videoContext.trim() : rawText
+      const { system, messages, model, max_tokens } = buildExtractRecipeRequest({ rawText: combinedText, sourceUrl: sourceUrl || undefined })
       const response = await postClaude({ model, max_tokens, system, messages })
       const text = response.content[0]?.text || ''
       const cleaned = text
