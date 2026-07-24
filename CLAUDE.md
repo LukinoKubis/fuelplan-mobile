@@ -395,6 +395,23 @@ deliberately rejected. **Share targets don't work in Expo Go or web** —
 testing the actual OS-level "share to Fuelplan" flow needs the EAS
 dev-client build installed on a real Android device.
 
+`recipe-import.tsx`'s Link field is real editable state (`sourceUrl`),
+not a one-time read of the share-intent route param — pasting a link by
+hand drives the exact same TikTok/Instagram logic as a real share. This
+is also the only way to exercise that flow in Expo Go, which can't do
+native share-intent.
+
+**Video reading (TikTok only)**: `extractVideoText()` (`client.ts`) calls
+`claude-backend`'s `/api/recipes/extract-video`, in parallel with the
+oEmbed caption fetch, whenever the link is a TikTok URL — appends
+whatever it finds (spoken-audio transcript + on-screen text overlays) to
+the field rather than waiting for or overwriting it. This is a **real
+scrape**, not an official API (see `claude-backend/CLAUDE.md` for why and
+its Railway-deploy gotchas) — genuinely slower (10-20s) and can fail;
+always treated as best-effort on the client, never blocks pasting/editing
+manually. Instagram is not supported (backend rejects non-TikTok URLs) —
+scraping it reliably would need a logged-in session, not attempted.
+
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
 internal plan file — M1-M4 closed, M5/M6 open. See the approved migration
