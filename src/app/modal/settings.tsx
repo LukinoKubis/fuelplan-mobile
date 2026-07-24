@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Pressable, ScrollView, View } from 'react-native'
+import { Platform, Pressable, ScrollView, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
@@ -42,12 +42,12 @@ export default function SettingsScreen() {
   }
 
   /**
-   * Toggles the Weekly Summary push subscription. Turning on requires real
-   * delivery credentials (FCM v1 for Android, an APNs key for iOS) to be
-   * configured in EAS — neither exists yet, see CLAUDE.md's "Push
-   * notifications" note — so registration can still fail even though this
-   * project is now linked to EAS. Fails soft: the toggle just won't turn
-   * on and shows why, rather than crash.
+   * Toggles the Weekly Summary push subscription. Android has real FCM v1
+   * delivery credentials configured (verified end-to-end 2026-07-24 on a
+   * dev build). iOS still needs an APNs key, which needs Apple Developer
+   * Program enrollment — not done yet, see CLAUDE.md's "Push
+   * notifications" note. Fails soft: the toggle just won't turn on and
+   * shows why, rather than crash.
    */
   async function handlePushToggle() {
     setPushError('')
@@ -63,7 +63,11 @@ export default function SettingsScreen() {
     setPushBusy(true)
     const token = await registerForPushNotificationsAsync()
     if (!token) {
-      setPushError('Push notifications need this build to be linked to EAS — not set up yet.')
+      setPushError(
+        Platform.OS === 'ios'
+          ? 'iOS push needs Apple Developer enrollment, which is on hold for now.'
+          : "Couldn't get a push token — check notification permission for this app."
+      )
       setPushBusy(false)
       return
     }

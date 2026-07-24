@@ -13,6 +13,22 @@ import * as Notifications from 'expo-notifications'
 import Constants from 'expo-constants'
 import { API_BASE, getToken } from './client'
 
+// Without this, expo-notifications' default behavior is to silently drop
+// any push that arrives while the app is in the foreground — confirmed
+// during testing: a push landed fine with the app backgrounded, but a
+// second one sent while the app was open never appeared anywhere, no
+// error either. This makes foreground pushes show the same banner a
+// backgrounded one gets, so "Weekly Summary" isn't invisible just because
+// the app happened to be open.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+})
+
 /**
  * Requests notification permission (and sets up the default Android
  * channel) then resolves an Expo push token, or null if permission was
@@ -20,7 +36,14 @@ import { API_BASE, getToken } from './client'
  * (e.g. missing delivery credentials).
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (!Device.isDevice) return null // push tokens aren't meaningful on simulators/web
+  // iOS simulators have no APNs at all, so push tokens are never meaningful
+  // there — but an Android emulator with Google Play Services (the
+  // `google_apis_playstore` system image) genuinely receives real FCM
+  // pushes, `Device.isDevice` notwithstanding. Verified 2026-07-24: a
+  // real Expo push token was issued and a background push actually
+  // arrived on such an emulator, so only excluding iOS here is correct,
+  // not just permissive-for-testing.
+  if (!Device.isDevice && Platform.OS === 'ios') return null
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
