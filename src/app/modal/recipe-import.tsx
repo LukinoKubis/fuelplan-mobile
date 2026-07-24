@@ -4,7 +4,7 @@ import { Text } from '@/components/Text'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Line } from 'react-native-svg'
 import { useThemeColors } from '../../lib/themeColors'
-import { ApiError, postClaude, saveRecipe } from '../../lib/client'
+import { ApiError, extractVideoText, postClaude, saveRecipe } from '../../lib/client'
 import { buildExtractRecipeRequest } from '../../lib/recipePrompt'
 import { friendlyErrorMessage } from '../../lib/errorMessage'
 import { useAccount } from '../../state/AccountContext'
@@ -38,6 +38,8 @@ export default function RecipeImportScreen() {
   const [error, setError] = useState('')
   const [draft, setDraft] = useState<Recipe | null>(null)
   const [prefetching, setPrefetching] = useState(false)
+  const [videoReading, setVideoReading] = useState(false)
+  const [videoNote, setVideoNote] = useState('')
 
   const isTikTok = /tiktok\.com/i.test(sourceUrl)
   const isInstagram = /instagram\.com/i.test(sourceUrl)
@@ -65,6 +67,39 @@ export default function RecipeImportScreen() {
       })
       .finally(() => {
         if (!cancelled) setPrefetching(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceUrl])
+
+  // Reads spoken audio + on-screen text overlays the caption alone doesn't
+  // cover — a real scrape (see client.ts/backend's videoExtract.ts), not
+  // an instant call, so it runs in parallel with the oEmbed caption fetch
+  // above and APPENDS to whatever's already in the field rather than
+  // waiting for or overwriting it. Best-effort: a failure here just means
+  // the caption (if any) is still there to work with, never blocks pasting/editing.
+  useEffect(() => {
+    if (!isTikTok) return
+    let cancelled = false
+    setVideoReading(true)
+    setVideoNote('')
+    extractVideoText(sourceUrl)
+      .then((result) => {
+        if (cancelled) return
+        const parts = [result.transcript, result.onScreenText].map((s) => s.trim()).filter(Boolean)
+        if (parts.length) {
+          setRawText((prev) => (prev.trim() ? prev.trim() + '\n\n' + parts.join('\n\n') : parts.join('\n\n')))
+        }
+        if (result.warnings.length) setVideoNote(result.warnings.join(' '))
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setVideoNote(err instanceof ApiError ? err.message : 'Could not read the video — paste or edit the text manually instead.')
+      })
+      .finally(() => {
+        if (!cancelled) setVideoReading(false)
       })
     return () => {
       cancelled = true
@@ -203,15 +238,27 @@ export default function RecipeImportScreen() {
           style={{ borderColor: c.border, backgroundColor: c.bg2, color: c.text }}
         />
         {sourceUrl ? (
-          <Text className="mb-3 text-xs" style={{ color: c.muted }}>
-            {isTikTok
-              ? prefetching
-                ? 'TikTok link — fetching the caption…'
-                : 'TikTok link — caption filled in below.'
-              : isInstagram
-                ? 'Instagram link — paste the caption below, it can’t be fetched automatically.'
-                : 'Link saved with this recipe.'}
-          </Text>
+          <View className="mb-3 gap-1">
+            <Text className="text-xs" style={{ color: c.muted }}>
+              {isTikTok
+                ? prefetching
+                  ? 'TikTok link — fetching the caption…'
+                  : 'TikTok link — caption filled in below.'
+                : isInstagram
+                  ? 'Instagram link — paste the caption below, it can’t be fetched automatically.'
+                  : 'Link saved with this recipe.'}
+            </Text>
+            {isTikTok && (
+              <View className="flex-row items-center gap-1.5">
+                {videoReading && <ActivityIndicator size="small" color={c.muted} />}
+                <Text className="text-xs" style={{ color: c.muted }}>
+                  {videoReading
+                    ? 'Reading the video for spoken/on-screen ingredients too — this can take up to 20s…'
+                    : videoNote || 'Also checked the video itself for anything the caption missed.'}
+                </Text>
+              </View>
+            )}
+          </View>
         ) : (
           <View className="mb-3" />
         )}

@@ -142,6 +142,24 @@ export async function saveRecipe(recipe: Partial<Recipe>): Promise<{ ok: boolean
   return response.json()
 }
 
+/**
+ * Reads spoken audio + on-screen text overlays from a TikTok video (the
+ * caption alone often doesn't have the ingredients at all). Real
+ * server-side scraping, not an instant API call — can take 10-20+
+ * seconds and can fail if TikTok's page changes or blocks the request;
+ * treat it as best-effort, never block Extract Recipe on it succeeding.
+ * Instagram isn't supported (backend rejects non-TikTok URLs).
+ */
+export async function extractVideoText(url: string): Promise<{ transcript: string; onScreenText: string; warnings: string[] }> {
+  const response = await fetch(`${API_BASE}/api/recipes/extract-video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ url }),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
 /** Lists every recipe in the user's personal recipe box. */
 export async function getRecipeList(): Promise<{ recipes: Recipe[] }> {
   const response = await fetch(`${API_BASE}/api/recipes/list`, {
