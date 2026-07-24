@@ -235,8 +235,13 @@ design pass, not more agent work:**
   deep link, `scheme` set in `app.json`), `(tabs)/` (Fuel/Prep/Haul, custom
   `Header` wired as the Tabs navigator's header, both header and tab bar
   hidden during the survey full-takeover same as the web app's
-  `chromeHidden`), `modal/` (Settings/History/PlanName, Expo Router modal
-  presentation routes, not drawers — see the migration plan's rationale)
+  `chromeHidden`; `recipes/` is a 4th tab with its own nested `<Stack>`
+  (list + `[id]` detail) since the recipe box is plan-independent, unlike
+  Fuel/Prep/Haul — it turns off the Tabs navigator's own header via
+  `headerShown: false` on that one `Tabs.Screen` and renders the shared
+  `Header` component itself instead, only on the list screen), `modal/`
+  (Settings/History/PlanName/RecipeImport, Expo Router modal presentation
+  routes, not drawers — see the migration plan's rationale)
 - `src/state/` — `ThemeContext`, `AccountContext`, `PlanContext` (ported
   from the web app's `src/state/`, same names/shapes, async-hydration
   rewrite per above)
@@ -257,6 +262,44 @@ design pass, not more agent work:**
   ErrorBoundary, SettingsAction)
 - `Onboarding` (web app's PWA-install-guide screen) was **not ported** —
   100% PWA-install-prompt content, not applicable natively.
+
+## Recipe box (Recipe M1-M3, done; M4 — native share-intent — pending)
+Personal recipe library, separate from the AI-generated 7-day plan. No new
+AI-calling endpoint — extraction (`recipePrompt.ts`'s
+`buildExtractRecipeRequest`) and "Improve for Macros"
+(`buildImproveForMacrosRequest`) both go through the existing
+`POST /api/claude` proxy, same as plan generation, and so consume a
+generation credit like any other Claude call. Backend persistence is
+`claude-backend`'s `/api/recipes/{save,list,delete}` (see that repo's
+CLAUDE.md) — no recipe-by-id GET endpoint exists; the detail screen
+(`recipes/[id].tsx`) is handed the full recipe object as a route param by
+the list screen and only falls back to fetching+filtering the whole list
+if that param is missing (e.g. a future deep link).
+
+`sanitizeCaption()` (`lib/sanitize.ts`) is `sanitizeInput`'s sibling for
+this feature — same prompt-injection-phrase stripping, but skips the
+strict food-word character allowlist (captions have emoji/punctuation/
+hashtags) and caps at 3000 chars to match the backend's own
+`sanitizeUserContent` truncation ceiling.
+
+`modal/recipe-import.tsx` is the permanent landing screen for both manual
+paste and (M4) native share-intent — it already accepts `url`/`text`
+route params so M4 can hand off into it unchanged. Currently reachable
+via Settings' "Add a Recipe" and the Recipes tab's "+ Add".
+
+**`ADD_MEAL_TO_DAY` (PlanContext) must append, never insert.** `fuel/index.tsx`
+keys each meal's `eaten` toggle state off its **array index** within
+`day.meals` (`` `${day.day}-${i}` ``) — inserting a new meal anywhere but
+the end would silently point every later meal's saved eaten-state at the
+wrong meal. Verified with a Playwright pass: added a meal to a day that
+already had one meal marked eaten, confirmed the macro bar recomputed
+exactly right and the existing eaten-state didn't shift.
+
+**Known v1 limitation, surfaced in the UI, not silently**: adding a recipe
+to a plan does not update the Haul tab's `shopping_list` (a separate flat
+AI-generated array, unrelated to `Recipe.ingredients`) — the "Added to
+{day}" confirmation says so explicitly. Regenerating the shopping list
+from recipe ingredients is future scope.
 
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
