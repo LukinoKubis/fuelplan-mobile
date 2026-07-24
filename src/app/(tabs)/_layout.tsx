@@ -32,6 +32,16 @@ function HaulIcon({ color }: { color: ColorValue }) {
     </Svg>
   )
 }
+function RecipesIcon({ color }: { color: ColorValue }) {
+  return (
+    <Svg {...ICON_PROPS} stroke={color}>
+      <Path d="M3 2v7c0 1.66 1.34 3 3 3v10" />
+      <Path d="M6 2v6" />
+      <Path d="M3 2v6" />
+      <Path d="M18 2c-2.5 2.5-3 5-3 8s.5 5.5 3 8v4" />
+    </Svg>
+  )
+}
 
 export default function TabsLayout() {
   const { isAuthed } = useAccount()
@@ -59,6 +69,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="fuel/index" options={{ title: 'Fuel', tabBarIcon: ({ color }) => <FuelIcon color={color} /> }} />
       <Tabs.Screen name="prep/index" options={{ title: 'Prep', tabBarIcon: ({ color }) => <PrepIcon color={color} /> }} />
       <Tabs.Screen name="haul/index" options={{ title: 'Haul', tabBarIcon: ({ color }) => <HaulIcon color={color} /> }} />
+      <Tabs.Screen name="recipes" options={{ title: 'Recipes', headerShown: false, tabBarIcon: ({ color }) => <RecipesIcon color={color} /> }} />
     </Tabs>
   )
 }

@@ -4,7 +4,7 @@
  * AsyncStorage per-slice (see the useEffects in `PlanProvider` below).
  */
 import { createContext, useCallback, useContext, useEffect, useReducer, useState, type ReactNode } from 'react'
-import type { Plan } from '../types/plan'
+import type { Meal, Plan } from '../types/plan'
 import { EMPTY_PROFILE, type Profile } from '../types/profile'
 import { loadJSON, remove, saveJSON, STORAGE_KEYS } from '../lib/storage'
 
@@ -29,6 +29,7 @@ type Action =
   | { type: 'TOGGLE_FAVORITE'; name: string }
   | { type: 'RESET_EATEN' }
   | { type: 'RESET_SHOP_CHECKS' }
+  | { type: 'ADD_MEAL_TO_DAY'; day: string; meal: Meal }
 
 const INITIAL_STATE: PlanState = {
   plan: null,
@@ -70,6 +71,26 @@ function reducer(state: PlanState, action: Action): PlanState {
       return { ...state, eaten: {} }
     case 'RESET_SHOP_CHECKS':
       return { ...state, shopChecks: {} }
+    case 'ADD_MEAL_TO_DAY': {
+      if (!state.plan) return state
+      // Meal-eaten state is keyed by array index (see fuel/index.tsx) — the
+      // new meal MUST be appended to the end, never inserted mid-array, or
+      // every later meal's saved eaten-state would silently point at the
+      // wrong meal.
+      const days = state.plan.days.map((d) => {
+        if (d.day !== action.day) return d
+        const meals = [...d.meals, action.meal]
+        return {
+          ...d,
+          meals,
+          kcal: meals.reduce((sum, m) => sum + m.kcal, 0),
+          protein: meals.reduce((sum, m) => sum + m.protein, 0),
+          carbs: meals.reduce((sum, m) => sum + m.carbs, 0),
+          fat: meals.reduce((sum, m) => sum + m.fat, 0),
+        }
+      })
+      return { ...state, plan: { ...state.plan, days } }
+    }
     default:
       return state
   }
@@ -91,6 +112,8 @@ interface PlanContextValue extends PlanState {
   resetEaten: () => void
   /** Clears all shopping-list check state — "Reset Shopping List" in Settings. */
   resetShopChecks: () => void
+  /** Appends a meal to the end of the named day's meals and recomputes that day's totals. Does not touch the Haul tab's shopping list. */
+  addMealToDay: (day: string, meal: Meal) => void
   /** True while the survey/edit-profile flow should replace the Fuel tab's normal view. */
   surveyMode: boolean
   setSurveyMode: (value: boolean) => void
@@ -177,6 +200,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const toggleFavorite = useCallback((name: string) => dispatch({ type: 'TOGGLE_FAVORITE', name }), [])
   const resetEaten = useCallback(() => dispatch({ type: 'RESET_EATEN' }), [])
   const resetShopChecks = useCallback(() => dispatch({ type: 'RESET_SHOP_CHECKS' }), [])
+  const addMealToDay = useCallback((day: string, meal: Meal) => dispatch({ type: 'ADD_MEAL_TO_DAY', day, meal }), [])
 
   return (
     <PlanContext.Provider
@@ -192,6 +216,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         toggleFavorite,
         resetEaten,
         resetShopChecks,
+        addMealToDay,
         surveyMode,
         setSurveyMode,
       }}
