@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native'
+import { Image } from 'expo-image'
 import { Text } from '@/components/Text'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
@@ -9,6 +10,7 @@ import { buildImproveForMacrosRequest } from '../../../lib/recipePrompt'
 import { friendlyErrorMessage } from '../../../lib/errorMessage'
 import { usePlan } from '../../../state/PlanContext'
 import { PillGroup } from '../../../components/survey/Chips'
+import { RecipePhotoPicker } from '../../../components/shared/RecipePhotoPicker'
 import type { Recipe } from '../../../types/recipe'
 
 const TIME_SLOTS = [
@@ -65,6 +67,8 @@ export default function RecipeDetailScreen() {
   const [notFound, setNotFound] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [photoEditorOpen, setPhotoEditorOpen] = useState(false)
+  const [savingPhoto, setSavingPhoto] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
   const [addDay, setAddDay] = useState('')
@@ -119,6 +123,21 @@ export default function RecipeDetailScreen() {
       setImproveError(err instanceof ApiError ? err.message : friendlyErrorMessage(err))
     } finally {
       setImproving(false)
+    }
+  }
+
+  /** Cosmetic-only save — updates just the cover photo via the same upsert-by-id save endpoint everything else uses. */
+  async function handlePhotoChange(photo: string) {
+    if (!recipe) return
+    setSavingPhoto(true)
+    try {
+      const res = await saveRecipe({ ...recipe, photo })
+      setRecipe(res.recipe)
+      setPhotoEditorOpen(false)
+    } catch {
+      /* non-critical — the photo just didn't save, recipe data is unaffected */
+    } finally {
+      setSavingPhoto(false)
     }
   }
 
@@ -193,6 +212,10 @@ export default function RecipeDetailScreen() {
     <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: recipe.name }} />
 
+      {recipe.photo ? (
+        <Image source={{ uri: recipe.photo }} style={{ width: '100%', height: 180, borderRadius: 12, marginBottom: 12 }} contentFit="cover" />
+      ) : null}
+
       <Text className="mb-1 font-display text-xl" style={{ color: c.text }}>{recipe.name}</Text>
       {recipe.sourceUrl ? (
         <Pressable onPress={() => WebBrowser.openBrowserAsync(recipe.sourceUrl!)} className="mb-3 self-start">
@@ -235,6 +258,18 @@ export default function RecipeDetailScreen() {
         {recipe.steps.map((step, i) => (
           <Text key={i} className="text-sm" style={{ color: c.text }}>{i + 1}. {step}</Text>
         ))}
+      </View>
+
+      {/* Cover photo */}
+      <View className="mb-3 rounded-xl border p-3.5" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
+        <Pressable onPress={() => setPhotoEditorOpen((v) => !v)} disabled={savingPhoto}>
+          <Text className="text-sm font-bold" style={{ color: c.orange }}>{recipe.photo ? 'Change Cover Photo' : 'Add Cover Photo'}</Text>
+        </Pressable>
+        {photoEditorOpen && (
+          <View className="mt-3">
+            <RecipePhotoPicker photo={recipe.photo} onChange={handlePhotoChange} />
+          </View>
+        )}
       </View>
 
       {/* Add to Plan */}

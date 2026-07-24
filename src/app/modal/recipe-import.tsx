@@ -4,10 +4,11 @@ import { Text } from '@/components/Text'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Line } from 'react-native-svg'
 import { useThemeColors } from '../../lib/themeColors'
-import { ApiError, extractVideoText, postClaude, saveRecipe } from '../../lib/client'
+import { ApiError, extractInstagramCaption, extractVideoText, postClaude, saveRecipe } from '../../lib/client'
 import { buildExtractRecipeRequest } from '../../lib/recipePrompt'
 import { friendlyErrorMessage } from '../../lib/errorMessage'
 import { useAccount } from '../../state/AccountContext'
+import { RecipePhotoPicker } from '../../components/shared/RecipePhotoPicker'
 import type { Recipe, RecipeIngredient } from '../../types/recipe'
 
 type Stage = 'paste' | 'preview'
@@ -40,6 +41,8 @@ export default function RecipeImportScreen() {
   const [prefetching, setPrefetching] = useState(false)
   const [videoReading, setVideoReading] = useState(false)
   const [videoNote, setVideoNote] = useState('')
+  const [igReading, setIgReading] = useState(false)
+  const [igFailed, setIgFailed] = useState(false)
 
   const isTikTok = /tiktok\.com/i.test(sourceUrl)
   const isInstagram = /instagram\.com/i.test(sourceUrl)
@@ -100,6 +103,35 @@ export default function RecipeImportScreen() {
       })
       .finally(() => {
         if (!cancelled) setVideoReading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceUrl])
+
+  // Instagram's post page carries the caption in its og:description meta
+  // tag, injected client-side by Instagram's own app — same
+  // real-headless-browser scrape as the TikTok video read, but much
+  // faster since there's no video/audio involved (see
+  // claude-backend/instagramExtract.ts). Only some posts are actually
+  // readable this way (login-walled/private/age-restricted ones aren't) —
+  // a failure here just leaves the manual "paste the caption" prompt in
+  // place, exactly like before this existed.
+  useEffect(() => {
+    if (!isInstagram || rawText.trim()) return
+    let cancelled = false
+    setIgReading(true)
+    setIgFailed(false)
+    extractInstagramCaption(sourceUrl)
+      .then((result) => {
+        if (!cancelled && result.caption) setRawText(result.caption)
+      })
+      .catch(() => {
+        if (!cancelled) setIgFailed(true)
+      })
+      .finally(() => {
+        if (!cancelled) setIgReading(false)
       })
     return () => {
       cancelled = true
@@ -221,9 +253,7 @@ export default function RecipeImportScreen() {
       <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }} keyboardShouldPersistTaps="handled">
         <Text className="mb-1.5 text-lg" style={{ color: c.text }}>Add a Recipe</Text>
         <Text className="mb-4 text-sm" style={{ color: c.muted }}>
-          {isInstagram
-            ? "Instagram doesn't share the caption with the post — open the post, copy the caption, and paste it below."
-            : "Paste a recipe, a social caption, or just type what you remember — we'll turn it into a structured recipe with estimated macros."}
+          Paste a recipe, a social caption, or just type what you remember — we'll turn it into a structured recipe with estimated macros.
         </Text>
         <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Link (optional)</Text>
         <TextInput
@@ -245,7 +275,11 @@ export default function RecipeImportScreen() {
                   ? 'TikTok link — fetching the caption…'
                   : 'TikTok link — caption filled in below.'
                 : isInstagram
-                  ? 'Instagram link — paste the caption below, it can’t be fetched automatically.'
+                  ? igReading
+                    ? 'Instagram link — reading the caption…'
+                    : igFailed
+                      ? "Instagram link — couldn't read the caption automatically, paste it below."
+                      : 'Instagram link — caption filled in below.'
                   : 'Link saved with this recipe.'}
             </Text>
             {isTikTok && (
@@ -267,7 +301,15 @@ export default function RecipeImportScreen() {
           multiline
           value={rawText}
           onChangeText={setRawText}
-          placeholder={prefetching ? 'Fetching the caption from TikTok…' : isInstagram ? 'Paste the caption here…' : 'Paste text here…'}
+          placeholder={
+            prefetching
+              ? 'Fetching the caption from TikTok…'
+              : igReading
+                ? 'Reading the caption from Instagram…'
+                : isInstagram
+                  ? 'Paste the caption here…'
+                  : 'Paste text here…'
+          }
           placeholderTextColor={c.muted}
           textAlignVertical="top"
           className="mb-4 min-h-[160px] rounded-xl border px-3 py-2.5 text-sm"
@@ -292,6 +334,8 @@ export default function RecipeImportScreen() {
   return (
     <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }} keyboardShouldPersistTaps="handled">
       <Text className="mb-4 text-lg" style={{ color: c.text }}>Review Recipe</Text>
+
+      <RecipePhotoPicker photo={draft.photo} onChange={(photo) => patchDraft({ photo })} />
 
       <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Name</Text>
       <TextInput

@@ -52,6 +52,13 @@
           },
           "androidIntentFilters": ["text/*"]
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fuelplan uses your photos to let you add a cover picture to a saved recipe.",
+          "cameraPermission": "Fuelplan uses your camera to let you take a cover picture for a saved recipe."
+        }
       ]
     ],
     "experiments": {

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
+import { Image } from 'expo-image'
 import { Text } from '@/components/Text'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Header } from '../../../components/layout/Header'
@@ -44,14 +45,19 @@ export default function RecipesListScreen() {
             <Pressable
               key={recipe.id}
               onPress={() => router.push({ pathname: '/(tabs)/recipes/[id]', params: { id: String(recipe.id), recipe: JSON.stringify(recipe) } })}
-              className="rounded-xl border p-3.5"
+              className="flex-row items-center gap-3 rounded-xl border p-3.5"
               style={{ borderColor: c.border, backgroundColor: c.bg2 }}
             >
-              <Text className="mb-1 text-sm font-semibold" numberOfLines={1} style={{ color: c.text }}>{recipe.name}</Text>
-              <Text className="text-xs" style={{ color: c.muted }}>
-                {Math.round((recipe.macros?.kcal ?? 0) / (recipe.servings && recipe.servings > 0 ? recipe.servings : 1))} kcal/serving
-                {recipe.servings && recipe.servings > 1 ? ` (serves ${recipe.servings})` : ''} · {recipe.ingredients.length} ingredient{recipe.ingredients.length === 1 ? '' : 's'}
-              </Text>
+              {recipe.photo ? (
+                <Image source={{ uri: recipe.photo }} style={{ width: 48, height: 48, borderRadius: 8 }} contentFit="cover" />
+              ) : null}
+              <View className="min-w-0 flex-1">
+                <Text className="mb-1 text-sm font-semibold" numberOfLines={1} style={{ color: c.text }}>{recipe.name}</Text>
+                <Text className="text-xs" style={{ color: c.muted }}>
+                  {Math.round((recipe.macros?.kcal ?? 0) / (recipe.servings && recipe.servings > 0 ? recipe.servings : 1))} kcal/serving
+                  {recipe.servings && recipe.servings > 1 ? ` (serves ${recipe.servings})` : ''} · {recipe.ingredients.length} ingredient{recipe.ingredients.length === 1 ? '' : 's'}
+                </Text>
+              </View>
             </Pressable>
           ))}
         </View>

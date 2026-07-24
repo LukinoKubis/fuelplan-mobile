@@ -148,10 +148,28 @@ export async function saveRecipe(recipe: Partial<Recipe>): Promise<{ ok: boolean
  * server-side scraping, not an instant API call — can take 10-20+
  * seconds and can fail if TikTok's page changes or blocks the request;
  * treat it as best-effort, never block Extract Recipe on it succeeding.
- * Instagram isn't supported (backend rejects non-TikTok URLs).
+ * TikTok only (backend rejects non-TikTok URLs) — for Instagram, see
+ * extractInstagramCaption below.
  */
 export async function extractVideoText(url: string): Promise<{ transcript: string; onScreenText: string; warnings: string[] }> {
   const response = await fetch(`${API_BASE}/api/recipes/extract-video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ url }),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/**
+ * Reads an Instagram post/reel's caption — real server-side scraping (a
+ * headless-browser page load, same reasoning as extractVideoText above),
+ * not an instant API call, and can fail for login-walled posts (private
+ * accounts, some age-restricted content). Best-effort: a failure here
+ * just means the manual "paste the caption" fallback is still there.
+ */
+export async function extractInstagramCaption(url: string): Promise<{ caption: string }> {
+  const response = await fetch(`${API_BASE}/api/recipes/extract-instagram-caption`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ url }),
