@@ -3,6 +3,7 @@
 // secureStorage (Keychain/Keystore) instead of localStorage, and every
 // caller now awaits authHeaders() since that read is async.
 import type { HistoryEntryMeta, Macros, Plan } from '../types/plan'
+import type { Recipe } from '../types/recipe'
 import { loadToken, saveToken, removeToken } from './secureStorage'
 
 /** Railway-hosted backend shared with the (now-frozen) web app — no local backend proxy. */
@@ -125,6 +126,39 @@ export async function deleteHistory(planId: number): Promise<{ ok: boolean; rema
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ planId }),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/** Saves a new recipe, or updates an existing one if `recipe.id` is set. */
+export async function saveRecipe(recipe: Partial<Recipe>): Promise<{ ok: boolean; recipe: Recipe }> {
+  const response = await fetch(`${API_BASE}/api/recipes/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ recipe }),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/** Lists every recipe in the user's personal recipe box. */
+export async function getRecipeList(): Promise<{ recipes: Recipe[] }> {
+  const response = await fetch(`${API_BASE}/api/recipes/list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({}),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/** Removes a recipe from the user's recipe box. */
+export async function deleteRecipe(recipeId: number): Promise<{ ok: boolean; remaining: number }> {
+  const response = await fetch(`${API_BASE}/api/recipes/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ recipeId }),
   })
   if (!response.ok) return parseErrorResponse(response)
   return response.json()
