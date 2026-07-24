@@ -41,6 +41,16 @@
         {
           "color": "#c8f542"
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1
+          },
+          "androidIntentFilters": ["text/*"]
+        }
       ]
     ],
     "experiments": {

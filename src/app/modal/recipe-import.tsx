@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -36,6 +36,37 @@ export default function RecipeImportScreen() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState<Recipe | null>(null)
+  const [prefetching, setPrefetching] = useState(false)
+
+  const isTikTok = /tiktok\.com/i.test(sourceUrl)
+  const isInstagram = /instagram\.com/i.test(sourceUrl)
+
+  // TikTok's public oEmbed endpoint legitimately returns the full caption
+  // in its `title` field (unauthenticated, ToS-safe — confirmed by a live
+  // test call during planning). Instagram's oEmbed needs Meta App Review
+  // for arbitrary posts and scraping is deliberately off the table, so
+  // Instagram shares land with an empty field and a "paste the caption"
+  // prompt instead.
+  useEffect(() => {
+    if (!isTikTok || params.text || rawText) return
+    let cancelled = false
+    setPrefetching(true)
+    fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(sourceUrl)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { title?: string } | null) => {
+        if (!cancelled && d?.title) setRawText(d.title)
+      })
+      .catch(() => {
+        /* prefill is best-effort — the user can always paste manually */
+      })
+      .finally(() => {
+        if (!cancelled) setPrefetching(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /** Sends the pasted text to Claude, parses the structured recipe back out, and advances to the editable preview. */
   async function handleExtract() {
@@ -151,14 +182,24 @@ export default function RecipeImportScreen() {
       <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }} keyboardShouldPersistTaps="handled">
         <Text className="mb-1.5 text-lg" style={{ color: c.text }}>Add a Recipe</Text>
         <Text className="mb-4 text-sm" style={{ color: c.muted }}>
-          Paste a recipe, a social caption, or just type what you remember — we'll turn it into a structured recipe with estimated macros.
+          {isInstagram
+            ? "Instagram doesn't share the caption with the post — open the post, copy the caption, and paste it below."
+            : "Paste a recipe, a social caption, or just type what you remember — we'll turn it into a structured recipe with estimated macros."}
         </Text>
+        {sourceUrl ? (
+          <View className="mb-3 rounded-xl border px-3 py-2" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
+            <Text className="text-[11px] font-bold uppercase tracking-wide" style={{ color: c.muted }}>
+              Shared from {isTikTok ? 'TikTok' : isInstagram ? 'Instagram' : 'a link'}
+            </Text>
+            <Text className="text-xs" numberOfLines={1} style={{ color: c.blue }}>{sourceUrl}</Text>
+          </View>
+        ) : null}
         <TextInput
           autoFocus
           multiline
           value={rawText}
           onChangeText={setRawText}
-          placeholder="Paste text here…"
+          placeholder={prefetching ? 'Fetching the caption from TikTok…' : isInstagram ? 'Paste the caption here…' : 'Paste text here…'}
           placeholderTextColor={c.muted}
           textAlignVertical="top"
           className="mb-4 min-h-[160px] rounded-xl border px-3 py-2.5 text-sm"
