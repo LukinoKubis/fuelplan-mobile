@@ -12,7 +12,7 @@ export function Header({ onOpenSettings }: { onOpenSettings: () => void }) {
         <Svg width={26} height={26} viewBox="0 0 48 48" fill="none">
           <Rect width={48} height={48} rx={14} fill="#c8f542" />
           <Path d="M25 7L13 27h12l-4 14 18-22H27L31 7H25z" fill="#0e0f11" />
-        </Svg>
+        </Svg>I notic
         <Text className="font-display text-lg tracking-tight" style={{ color: c.text }}>Fuelplan</Text>
       </View>
       <Pressable onPress={onOpenSettings} hitSlop={8} accessibilityLabel="Settings" className="h-8 w-8 items-center justify-center rounded-full border" style={{ borderColor: c.border }}>
