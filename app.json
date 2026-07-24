@@ -8,9 +8,11 @@
     "scheme": "fuelplanmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "fit.fuelplan.app"
     },
     "android": {
+      "package": "fit.fuelplan.app",
       "adaptiveIcon": {
         "backgroundColor": "#0e0f11",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -44,6 +46,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fc3283f7-4bce-4f7e-807e-783ab59357cf"
+      }
+    },
+    "owner": "lukiskubis"
   }
 }
