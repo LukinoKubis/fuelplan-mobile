@@ -12,6 +12,7 @@ const LANE_LABEL: Record<string, string> = {
   passive: 'Passive',
 }
 
+/** Prep tab — Sunday batch-cook checklist, each step expandable to show its full detail text. */
 export default function PrepScreen() {
   const c = useThemeColors()
   const { plan } = usePlan()

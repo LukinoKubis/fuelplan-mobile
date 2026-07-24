@@ -10,6 +10,7 @@ import { friendlyErrorMessage } from '../../lib/errorMessage'
 
 type Mode = 'login' | 'signup'
 
+/** Combined login/signup screen — one form, toggled by `mode`, matching the web app's single-component pattern. */
 export default function LoginScreen() {
   const router = useRouter()
   const { login, signup } = useAccount()

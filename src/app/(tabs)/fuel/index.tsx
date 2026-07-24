@@ -13,6 +13,7 @@ import { ErrorBoundary } from '../../../components/shared/ErrorBoundary'
 import { createCheckout } from '../../../lib/client'
 import { useThemeColors } from '../../../lib/themeColors'
 
+/** Fuel tab — shows the survey (no plan yet / regenerating) or the day switcher + macro bar + meal cards. */
 export default function FuelScreen() {
   const c = useThemeColors()
   const router = useRouter()

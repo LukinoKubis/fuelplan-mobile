@@ -7,6 +7,7 @@ import { usePlan } from '../../state/PlanContext'
 import type { HistoryEntryMeta } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'
 
+/** "My Plans" modal — lists saved plans (max 5 server-side) with Restore/Delete actions. */
 export default function HistoryScreen() {
   const c = useThemeColors()
   const router = useRouter()

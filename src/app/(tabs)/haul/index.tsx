@@ -3,6 +3,7 @@ import { usePlan } from '../../../state/PlanContext'
 import { ShoppingList } from '../../../components/fuel/ShoppingList'
 import { ErrorBoundary } from '../../../components/shared/ErrorBoundary'
 
+/** Haul tab — thin wrapper around ShoppingList, sourcing categories from the current plan. */
 export default function HaulScreen() {
   const { plan } = usePlan()
   return (

@@ -6,6 +6,7 @@ import { usePlan } from '../../state/PlanContext'
 import { saveHistory } from '../../lib/client'
 import { useThemeColors } from '../../lib/themeColors'
 
+/** Shown right after generating a plan — names it and saves to history, or Skip to leave it unsaved/unnamed. */
 export default function PlanNameScreen() {
   const c = useThemeColors()
   const router = useRouter()

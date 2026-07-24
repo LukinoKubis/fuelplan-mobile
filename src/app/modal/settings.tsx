@@ -13,6 +13,7 @@ import { useThemeColors } from '../../lib/themeColors'
 import { registerForPushNotificationsAsync, subscribePush, unsubscribePush } from '../../lib/pushNotifications'
 import { loadString, remove, saveString, STORAGE_KEYS } from '../../lib/storage'
 
+/** Settings modal — profile summary, plan actions, appearance toggle, push toggle, data resets, logout/full-reset. */
 export default function SettingsScreen() {
   const c = useThemeColors()
   const router = useRouter()
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
     loadString(STORAGE_KEYS.pushToken).then((token) => setPushEnabled(!!token))
   }, [])
 
+  /** Starts a LemonSqueezy checkout for 10 more credits and opens it in an in-app browser tab. */
   async function handleTopUp() {
     setTopupBusy(true)
     try {
@@ -39,10 +41,14 @@ export default function SettingsScreen() {
     }
   }
 
-  // Requires this project to be linked to EAS (for a push token) and, for
-  // real delivery, FCM v1 (Android) / APNs (iOS) credentials configured in
-  // EAS — neither exists yet, see CLAUDE.md's "Push notifications" note.
-  // Fails soft: toggle just won't turn on and shows why, rather than crash.
+  /**
+   * Toggles the Weekly Summary push subscription. Turning on requires real
+   * delivery credentials (FCM v1 for Android, an APNs key for iOS) to be
+   * configured in EAS — neither exists yet, see CLAUDE.md's "Push
+   * notifications" note — so registration can still fail even though this
+   * project is now linked to EAS. Fails soft: the toggle just won't turn
+   * on and shows why, rather than crash.
+   */
   async function handlePushToggle() {
     setPushError('')
     if (pushEnabled) {
@@ -71,6 +77,7 @@ export default function SettingsScreen() {
     setPushBusy(false)
   }
 
+  /** Two-tap confirm, then clears the plan, logs out, and returns to the login screen. */
   function handleFullReset() {
     if (!resetConfirm) {
       setResetConfirm(true)
@@ -147,6 +154,7 @@ export default function SettingsScreen() {
   )
 }
 
+/** One label/value line in the "Current Profile" card. */
 function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   const c = useThemeColors()
   return (
@@ -159,6 +167,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
 
 const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
 
+// Hand-drawn SVG icons for each SettingsAction row below — one per row, named for what they represent.
 function BoltIcon() {
   const c = useThemeColors()
   return <Svg {...ICON_PROPS} stroke={c.lime}><Path d="M13 2L4.5 13.5H11L9 22L19.5 10H13L15 2H13z" /></Svg>

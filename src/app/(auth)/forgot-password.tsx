@@ -7,6 +7,7 @@ import { Field } from '../../components/Field'
 import { forgotPassword } from '../../lib/client'
 import { useThemeColors } from '../../lib/themeColors'
 
+/** Requests a reset email — always shows the same notice regardless of whether the account exists (no email enumeration). */
 export default function ForgotPasswordScreen() {
   const c = useThemeColors()
   const router = useRouter()
