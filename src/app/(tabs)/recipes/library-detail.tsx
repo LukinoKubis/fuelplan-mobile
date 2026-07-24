@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import Svg, { Path } from 'react-native-svg'
 import { useThemeColors } from '../../../lib/themeColors'
-import { addLibraryRecipeToMine } from '../../../lib/client'
+import { addLibraryRecipeToMine, toggleLibraryFavorite } from '../../../lib/client'
 import { perServingMacros } from '../../../lib/recipeMacros'
 import { usePlan } from '../../../state/PlanContext'
 import { PillGroup } from '../../../components/survey/Chips'
@@ -39,6 +40,15 @@ export default function LibraryRecipeDetailScreen() {
       return null
     }
   })
+
+  const [favorited, setFavorited] = useState(!!recipe?.favorited)
+
+  function handleToggleFavorite() {
+    if (!recipe) return
+    const next = !favorited
+    setFavorited(next)
+    toggleLibraryFavorite(recipe.id, next).catch(() => setFavorited(!next))
+  }
 
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(false)
@@ -92,7 +102,14 @@ export default function LibraryRecipeDetailScreen() {
     <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }}>
       <Stack.Screen options={{ title: recipe.name }} />
 
-      <Text className="mb-1 font-display text-xl" style={{ color: c.text }}>{recipe.name}</Text>
+      <View className="mb-1 flex-row items-start justify-between gap-2">
+        <Text className="flex-1 font-display text-xl" style={{ color: c.text }}>{recipe.name}</Text>
+        <Pressable onPress={handleToggleFavorite} hitSlop={8} className="mt-1 p-1">
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill={favorited ? c.red : 'none'} stroke={favorited ? c.red : c.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </Svg>
+        </Pressable>
+      </View>
       <Text className="mb-4 text-xs" style={{ color: c.muted }}>{recipe.cuisine} · {recipe.category}</Text>
 
       <View className="mb-2 flex-row flex-wrap gap-1.5">

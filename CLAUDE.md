@@ -422,6 +422,37 @@ recipes without one yet — saves immediately via the existing
 upsert-by-id call). Stored as a base64 data URI directly on `Recipe.photo`
 — purely cosmetic, unrelated to extraction.
 
+## Shared recipe library (Library M1-M3 done; M4 — grounding plan generation in it — not started)
+A separate, admin-seeded catalog every user reads the same copy of —
+distinct from the personal recipe box above. `recipes/library.tsx`
+(browse/search/category filter) and `recipes/library-detail.tsx`
+(read-only, "Add to My Recipes" copies it into the personal box via
+`addLibraryRecipeToMine`, "Add to Plan" works the same as the personal
+detail screen). Reached via "Browse Recipe Library →" on the personal
+recipes list. Backend: `claude-backend`'s `/api/library/{list,
+add-to-my-recipes,favorite}` and the admin-only `/api/admin/seed-library`
+(see that repo's CLAUDE.md for the seeding pipeline).
+
+**Favorites** are a bookmark into the shared library
+(`fuelplan:favorites:USERID` in Redis, holding just a list of library
+recipe ids) — a third, deliberately separate concept from both the
+personal recipe box and `PlanContext`'s meal-name favorites (which bias
+AI plan generation). `toggleLibraryFavorite()` (`client.ts`) plus a heart
+icon on both the library list cards and the detail screen header, with
+optimistic local-state toggling that reverts on API failure.
+
+**Real bug hit and fixed verifying this**: `library.tsx` originally
+fetched with a plain `useEffect` keyed on the filter/search state, so
+toggling a favorite on the detail screen and pressing back left the list
+screen's local `recipes` state stale (Expo Router's Stack keeps the
+previous screen mounted, so nothing forced a refetch) — a Playwright pass
+caught it directly: unfavorite from the detail screen, go back with
+"Favorites only" still on, and the just-unfavorited card was still
+showing. Fixed the same way `recipes/index.tsx` already handled this for
+the personal list — swapped the plain `useEffect` for `useFocusEffect`
+(re-exported from `expo-router`) so the library also refetches every time
+the screen regains focus, not just when its own filters change.
+
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
 internal plan file — M1-M4 closed, M5/M6 open. See the approved migration

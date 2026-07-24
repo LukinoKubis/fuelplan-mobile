@@ -202,11 +202,22 @@ export async function deleteRecipe(recipeId: number): Promise<{ ok: boolean; rem
 }
 
 /** Lists/searches the shared recipe library — every user reads the same admin-seeded catalog, filtered server-side. */
-export async function getRecipeLibrary(params?: { category?: string; search?: string }): Promise<{ recipes: LibraryRecipe[] }> {
+export async function getRecipeLibrary(params?: { category?: string; search?: string; favoritesOnly?: boolean }): Promise<{ recipes: LibraryRecipe[] }> {
   const response = await fetch(`${API_BASE}/api/library/list`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(params || {}),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+/** Toggles a library recipe's favorited status for the signed-in user — a bookmark within the library browse UI, unrelated to PlanContext's meal-name favorites. */
+export async function toggleLibraryFavorite(libraryId: number, favorited: boolean): Promise<{ ok: boolean; favorites: number[] }> {
+  const response = await fetch(`${API_BASE}/api/library/favorite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ libraryId, favorited }),
   })
   if (!response.ok) return parseErrorResponse(response)
   return response.json()
