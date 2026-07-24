@@ -5,8 +5,16 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import Svg, { Path } from 'react-native-svg'
 import { getRecipeLibrary, toggleLibraryFavorite } from '../../../lib/client'
 import { useThemeColors } from '../../../lib/themeColors'
+import { perServingMacros } from '../../../lib/recipeMacros'
 import { PillGroup } from '../../../components/survey/Chips'
 import type { LibraryRecipe } from '../../../types/recipeLibrary'
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  breakfast: '🍳',
+  lunch: '🥗',
+  dinner: '🍽️',
+  snack: '🍎',
+}
 
 const CATEGORIES = [
   { value: '', label: 'All' },
@@ -15,6 +23,16 @@ const CATEGORIES = [
   { value: 'dinner', label: 'Dinner' },
   { value: 'snack', label: 'Snack' },
 ]
+
+/** Small colored macro readout — same kcal=lime/protein=blue/carbs=orange/fat=red convention as DayMacroBar, so a library card reads consistently with the rest of the app. */
+function MacroChip({ value, label, color, c }: { value: number; label: string; color: string; c: ReturnType<typeof useThemeColors> }) {
+  return (
+    <View className="flex-1 items-center rounded-lg py-1.5" style={{ backgroundColor: c.bg }}>
+      <Text className="text-[13px] font-extrabold" style={{ color }}>{value}</Text>
+      <Text className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: c.muted }}>{label}</Text>
+    </View>
+  )
+}
 
 function HeartButton({ favorited, onPress }: { favorited: boolean; onPress: () => void }) {
   const c = useThemeColors()
@@ -117,26 +135,37 @@ export default function RecipeLibraryScreen() {
           </Text>
         )}
 
-        <View className="gap-2.5">
+        <View className="gap-3">
           {recipes?.map((recipe) => {
-            const perServingKcal = Math.round(recipe.macros.kcal / (recipe.servings > 0 ? recipe.servings : 1))
+            const per = perServingMacros(recipe)
             return (
               <Pressable
                 key={recipe.id}
                 onPress={() =>
                   router.push({ pathname: '/(tabs)/recipes/library-detail', params: { id: String(recipe.id), recipe: JSON.stringify(recipe) } })
                 }
-                className="rounded-xl border p-3.5"
+                className="overflow-hidden rounded-2xl border"
                 style={{ borderColor: c.border, backgroundColor: c.bg2 }}
               >
-                <View className="mb-1 flex-row items-start justify-between gap-2">
-                  <Text className="flex-1 text-sm font-semibold" numberOfLines={1} style={{ color: c.text }}>{recipe.name}</Text>
+                <View className="flex-row items-center justify-between gap-2 px-3.5 pt-3.5">
+                  <View className="flex-1 flex-row items-center gap-1.5">
+                    <Text className="text-base">{CATEGORY_EMOJI[recipe.category] ?? '🍴'}</Text>
+                    <Text className="flex-1 text-[15px] font-bold" numberOfLines={1} style={{ color: c.text }}>{recipe.name}</Text>
+                  </View>
                   <HeartButton favorited={!!recipe.favorited} onPress={() => handleToggleFavorite(recipe)} />
                 </View>
-                <Text className="mb-1.5 text-xs" style={{ color: c.muted }}>
-                  {perServingKcal} kcal/serving · {recipe.cuisine} · {recipe.category}
+                <Text className="px-3.5 pb-3 text-xs" style={{ color: c.muted }}>
+                  {recipe.cuisine} · {recipe.category}{recipe.servings > 1 ? ` · serves ${recipe.servings}` : ''}
                 </Text>
-                <View className="flex-row flex-wrap gap-1.5">
+
+                <View className="mx-3.5 flex-row gap-1.5">
+                  <MacroChip value={per.kcal} label="kcal" color={c.lime} c={c} />
+                  <MacroChip value={per.protein} label="protein" color={c.blue} c={c} />
+                  <MacroChip value={per.carbs} label="carbs" color={c.orange} c={c} />
+                  <MacroChip value={per.fat} label="fat" color={c.red} c={c} />
+                </View>
+
+                <View className="flex-row flex-wrap gap-1.5 px-3.5 py-3">
                   {recipe.tags.slice(0, 4).map((tag) => (
                     <View key={tag} className="rounded-full px-2 py-0.5" style={{ backgroundColor: c.bg }}>
                       <Text className="text-[10px]" style={{ color: c.muted }}>{tag}</Text>
