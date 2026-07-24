@@ -5,6 +5,7 @@ import type { ShoppingCategory } from '../../types/plan'
 import { usePlan } from '../../state/PlanContext'
 import { useThemeColors } from '../../lib/themeColors'
 
+/** Hand-drawn checkbox (RN has no native checkbox primitive) — filled lime square with a checkmark when checked. */
 function Checkbox({ checked }: { checked: boolean }) {
   const c = useThemeColors()
   return (
@@ -21,6 +22,7 @@ function Checkbox({ checked }: { checked: boolean }) {
   )
 }
 
+/** The Haul tab's content — categorized, checkable shopping list, or an empty state before a plan exists. */
 export function ShoppingList({ categories }: { categories: ShoppingCategory[] }) {
   const c = useThemeColors()
   const { shopChecks, toggleShopCheck } = usePlan()

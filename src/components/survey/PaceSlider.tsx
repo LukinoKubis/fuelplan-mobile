@@ -9,6 +9,7 @@ interface PaceSliderProps {
   onChange: (rate: number) => void
 }
 
+/** Weekly-rate slider (0.1–1.5kg/wk) for the "Target weight" goal path — color/label react live via getPaceCategory. */
 export function PaceSlider({ value, onChange }: PaceSliderProps) {
   const c = useThemeColors()
   const cat = getPaceCategory(value)

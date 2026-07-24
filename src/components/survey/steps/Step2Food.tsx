@@ -15,6 +15,7 @@ interface Step2Props {
   onVariety: (v: string) => void
 }
 
+/** Survey step 3/4 — dietary restrictions, disliked foods, cuisine preferences, meal variety. */
 export function Step2Food({ dietPref, onDietPref, dislikedFoods, onDislikedFoods, cuisines, onToggleCuisine, variety, onVariety }: Step2Props) {
   return (
     <View>

@@ -5,6 +5,7 @@ interface FieldProps extends TextInputProps {
   label: string
 }
 
+/** Labeled text input matching the web app's Field component — used across auth screens and the survey. */
 export function Field({ label, ...inputProps }: FieldProps) {
   return (
     <View className="mb-4">

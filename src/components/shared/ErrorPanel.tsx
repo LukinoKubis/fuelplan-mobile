@@ -11,6 +11,7 @@ interface ErrorPanelProps {
   onTopUp?: () => void
 }
 
+/** Full-screen overlay shown when plan generation fails — offers Retry (or Top Up, if out of credits) and Back. */
 export function ErrorPanel({ message, onRetry, onDismiss, isOutOfPlans, onTopUp }: ErrorPanelProps) {
   const c = useThemeColors()
   return (

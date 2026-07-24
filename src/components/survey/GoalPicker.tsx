@@ -8,6 +8,7 @@ interface GoalPickerProps {
   onChange: (offset: number) => void
 }
 
+/** Grid of goal-preset cards (Lean Bulk → Aggressive Cut) — the "Quick select" path in Step3Macros. */
 export function GoalPicker({ value, onChange }: GoalPickerProps) {
   const c = useThemeColors()
   return (

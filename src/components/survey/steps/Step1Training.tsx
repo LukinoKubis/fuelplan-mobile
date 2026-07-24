@@ -14,6 +14,7 @@ interface Step1Props {
   onPrepTime: (v: string) => void
 }
 
+/** Survey step 2/4 — training days/style, cooking skill, Sunday prep time. */
 export function Step1Training({
   trainingDays,
   onTrainingDays,

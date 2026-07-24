@@ -16,6 +16,7 @@ interface PillGroupProps {
   onChange: (value: string) => void
 }
 
+/** Single-select row of rounded pill buttons (e.g. Training Days Per Week). */
 export function PillGroup({ options, value, onChange }: PillGroupProps) {
   const c = useThemeColors()
   return (
@@ -47,6 +48,7 @@ interface CardGridProps {
   columns?: 2 | 3
 }
 
+/** Grid of selectable cards, single- or multi-select (e.g. Training Style, Cuisine). */
 export function CardGrid({ options, value, onChange, multi, columns = 2 }: CardGridProps) {
   const c = useThemeColors()
   const isActive = (v: string) => (multi ? (value as string[]).includes(v) : value === v)
@@ -87,6 +89,7 @@ interface VarietyGroupProps {
   onChange: (value: string) => void
 }
 
+/** Single-select vertical list of title+description rows (used for Meal Variety). */
 export function VarietyGroup({ options, value, onChange }: VarietyGroupProps) {
   const c = useThemeColors()
   return (

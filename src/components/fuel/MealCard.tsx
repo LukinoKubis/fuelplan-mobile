@@ -12,6 +12,7 @@ interface MealCardProps {
   onToggleFavorite: () => void
 }
 
+/** One meal's card in the Fuel tab's day view — macros, ingredients, favorite toggle, eaten toggle. */
 export function MealCard({ meal, eaten, onToggleEaten, favorite, onToggleFavorite }: MealCardProps) {
   const c = useThemeColors()
   return (

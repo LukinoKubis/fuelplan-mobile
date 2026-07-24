@@ -13,6 +13,11 @@ interface Step3Props {
   onChange: (patch: Partial<Profile>) => void
 }
 
+/**
+ * Survey step 4/4 — either manual macro entry, or a calc-mode path (body
+ * stats + activity + a goal, expressed as a quick-select preset or a
+ * target-weight/pace pair) that live-previews the resulting daily targets.
+ */
 export function Step3Macros({ profile, onChange }: Step3Props) {
   const c = useThemeColors()
   const setMode = (mode: MacroMode) => onChange({ mode })
@@ -174,6 +179,7 @@ export function Step3Macros({ profile, onChange }: Step3Props) {
   )
 }
 
+/** Numeric-keyboard labeled input, half or full width — local to this step (weight/height/age/macro fields). */
 function NumField({ label, value, onChange, placeholder, full }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; full?: boolean }) {
   const c = useThemeColors()
   return (
@@ -192,6 +198,7 @@ function NumField({ label, value, onChange, placeholder, full }: { label: string
   )
 }
 
+/** One calculated-macro value in the "Your Calculated Targets" preview row. */
 function PreviewItem({ value, unit }: { value: number; unit: string }) {
   return (
     <View className="items-center">

@@ -7,6 +7,7 @@ interface Step0Props {
   onNameChange: (name: string) => void
 }
 
+/** Survey step 1/4 — just the user's (optional) name. */
 export function Step0Start({ name, onNameChange }: Step0Props) {
   return (
     <View>

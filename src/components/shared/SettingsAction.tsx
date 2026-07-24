@@ -13,6 +13,12 @@ interface SettingsActionProps {
   trailing?: ReactNode
 }
 
+/**
+ * One row in the Settings screen — icon, title, description, and either a
+ * tap target (chevron) or a `trailing` control like a toggle switch. Renders
+ * as a plain View (not Pressable) when `trailing` is given, since the row
+ * itself isn't the interactive element in that case — the toggle is.
+ */
 export function SettingsAction({ icon, iconColor, title, desc, onPress, danger, trailing }: SettingsActionProps) {
   const c = useThemeColors()
   const resolvedIconColor = iconColor || c.lime

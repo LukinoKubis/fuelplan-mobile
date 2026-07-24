@@ -3,6 +3,7 @@ import { Text } from '@/components/Text'
 import type { DayPlan } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'
 
+/** One macro's progress bar — actual/target values plus a filled bar clamped at 100%. */
 function Bar({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
   const c = useThemeColors()
   const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0
@@ -20,6 +21,7 @@ function Bar({ label, value, target, color }: { label: string; value: number; ta
   )
 }
 
+/** Row of 4 macro bars (kcal/protein/carbs/fat) comparing a day's actual totals against its target. */
 export function DayMacroBar({ day, target }: { day: DayPlan; target: { kcal: number; protein: number; carbs: number; fat: number } }) {
   const c = useThemeColors()
   return (

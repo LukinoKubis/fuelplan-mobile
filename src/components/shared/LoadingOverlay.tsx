@@ -4,6 +4,7 @@ import { Text } from '@/components/Text'
 import Svg, { Path, Rect } from 'react-native-svg'
 import { useThemeColors } from '../../lib/themeColors'
 
+/** Cycled every 3.2s while a plan generates, purely cosmetic — not tied to real generation progress. */
 const LOADER_STEPS = [
   { headline: 'Building your plan', sub: 'Reading your profile…', progress: 8 },
   { headline: 'Crunching macros', sub: 'Calculating your daily targets…', progress: 28 },
@@ -17,6 +18,7 @@ interface LoadingOverlayProps {
   onCancel: () => void
 }
 
+/** Full-screen overlay shown while a plan is generating — cycling status text + a Cancel link that appears after 3s. */
 export function LoadingOverlay({ onCancel }: LoadingOverlayProps) {
   const c = useThemeColors()
   const [step, setStep] = useState(0)

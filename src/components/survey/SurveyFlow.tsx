@@ -26,6 +26,12 @@ interface SurveyFlowProps {
   onCancel: () => void
 }
 
+/**
+ * The 4-step onboarding/regeneration wizard — replaces the Fuel tab's
+ * normal view whenever there's no plan yet or `surveyMode` is on. Owns the
+ * step index and the actual generate-request call; each step component is
+ * a controlled view over `PlanContext`'s `profile`.
+ */
 export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: SurveyFlowProps) {
   const c = useThemeColors()
   const { profile, setProfile, setPlan, favorites } = usePlan()
@@ -43,6 +49,7 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     setProfile({ cuisines: exists ? profile.cuisines.filter((v) => v !== value) : [...profile.cuisines, value] })
   }
 
+  /** Resolves macros, calls Claude, parses the returned plan JSON, and saves it — the "Generate My Plan" action. */
   async function handleGenerate() {
     const macros = resolveProfileMacros(profile)
     if (!macros) {
@@ -89,11 +96,13 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     }
   }
 
+  /** Aborts the in-flight generation request and dismisses the loading overlay. */
   function handleCancelLoading() {
     abortRef.current?.abort()
     setLoading(false)
   }
 
+  /** Advances to the next step, or triggers generation from the final step. */
   function next() {
     if (step === TOTAL_STEPS - 1) {
       handleGenerate()
@@ -102,6 +111,7 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     setStep((s) => s + 1)
   }
 
+  /** Goes back a step, or exits the survey (if cancellable) from the first step. */
   function prev() {
     if (step === 0) {
       if (canCancel) onCancel()
