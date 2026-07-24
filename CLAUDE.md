@@ -385,15 +385,9 @@ mounted even on cold-start-from-a-share) pushes to
 `/modal/recipe-import?url=...&text=...`. Unlike `expo-notifications`,
 this package is web-safe out of the box (`requireOptionalNativeModule` +
 `useShareIntent` self-disables on web) — no `.web.ts` sibling needed,
-verified the web bundle still builds. TikTok shares auto-prefill the
-caption via TikTok's public oEmbed (`title` field carries the full
-caption — verified live against a real video; the fetch is CORS-blocked
-in the *browser* preview only, which doesn't apply to native fetch, and
-fails soft to manual paste). Instagram shares get a "copy the caption
-and paste it" prompt — no ToS-safe auto-fetch exists, scraping was
-deliberately rejected. **Share targets don't work in Expo Go or web** —
-testing the actual OS-level "share to Fuelplan" flow needs the EAS
-dev-client build installed on a real Android device.
+verified the web bundle still builds. **Share targets don't work in Expo
+Go or web** — testing the actual OS-level "share to Fuelplan" flow needs
+the EAS dev-client build installed on a real Android device.
 
 `recipe-import.tsx`'s Link field is real editable state (`sourceUrl`),
 not a one-time read of the share-intent route param — pasting a link by
@@ -401,16 +395,32 @@ hand drives the exact same TikTok/Instagram logic as a real share. This
 is also the only way to exercise that flow in Expo Go, which can't do
 native share-intent.
 
-**Video reading (TikTok only)**: `extractVideoText()` (`client.ts`) calls
-`claude-backend`'s `/api/recipes/extract-video`, in parallel with the
-oEmbed caption fetch, whenever the link is a TikTok URL — appends
-whatever it finds (spoken-audio transcript + on-screen text overlays) to
-the field rather than waiting for or overwriting it. This is a **real
-scrape**, not an official API (see `claude-backend/CLAUDE.md` for why and
-its Railway-deploy gotchas) — genuinely slower (10-20s) and can fail;
-always treated as best-effort on the client, never blocks pasting/editing
-manually. Instagram is not supported (backend rejects non-TikTok URLs) —
-scraping it reliably would need a logged-in session, not attempted.
+**Caption/text auto-fill, both platforms, both real scrapes** (see
+`claude-backend/CLAUDE.md` for how and the Railway-deploy gotchas —
+Chromium needs real system libraries not present by default):
+- **TikTok**: caption via TikTok's public oEmbed (`title` field carries
+  it — the fetch is CORS-blocked in the *browser* preview only, doesn't
+  apply to native, fails soft to manual paste). `extractVideoText()`
+  (`client.ts`) additionally reads spoken-audio transcript + on-screen
+  text overlays the caption alone doesn't cover, in parallel with the
+  oEmbed fetch, appending whatever it finds rather than waiting for or
+  overwriting the field. Genuinely slower (10-20s) and can fail — always
+  best-effort, never blocks pasting/editing manually.
+- **Instagram**: `extractInstagramCaption()` reads the post page's
+  `og:description` meta tag (confirmed live — Instagram's oEmbed/API
+  don't expose captions without Meta App Review, but this does). Faster
+  than TikTok's read (~2-5s, no video/audio involved) but only works for
+  genuinely public posts — private/age-restricted/some-under-load posts
+  fail, falling back cleanly to the original "paste the caption
+  yourself" prompt.
+
+**Recipe cover photo**: `RecipePhotoPicker` (`components/shared/`) wraps
+`expo-image-picker` + `expo-image-manipulator` (resize to 640px wide,
+JPEG quality 0.6 via `lib/recipePhoto.ts`) into a reusable preview+pick
+widget, used on both the import review screen and the detail screen (for
+recipes without one yet — saves immediately via the existing
+upsert-by-id call). Stored as a base64 data URI directly on `Recipe.photo`
+— purely cosmetic, unrelated to extraction.
 
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
