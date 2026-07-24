@@ -8,6 +8,7 @@ import { useFonts } from 'expo-font'
 import { Syne_400Regular, Syne_700Bold, Syne_800ExtraBold } from '@expo-google-fonts/syne'
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree'
 import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent'
+import Head from 'expo-router/head'
 import { ThemeProvider, useTheme } from '../state/ThemeContext'
 import { AccountProvider, useAccount } from '../state/AccountContext'
 import { PlanProvider, usePlan } from '../state/PlanContext'
@@ -91,6 +92,12 @@ export default function RootLayout() {
     // provider) — it's inert on web/Expo Go where the native module is
     // absent, so it costs nothing in this dev environment.
     <ShareIntentProvider>
+      {/* Web only (no-op on native) — the static export's HTML shell has an
+          empty <title>, since Expo Router's web build doesn't read app.json's
+          `name` for it automatically. */}
+      <Head>
+        <title>Fuelplan</title>
+      </Head>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
           <AccountProvider>
