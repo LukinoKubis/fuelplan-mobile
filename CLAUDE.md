@@ -270,6 +270,40 @@ design pass, not more agent work:**
   questionnaire answers, a reviewer demo account (can create one the same
   way the earlier test accounts were created, once asked).
 
+## Temporary web deploy at app.fuelplan.fit
+Deployed 2026-07-24 as a stopgap so the app is usable before Google Play
+($25)/Apple Developer ($99/yr) enrollment happens — **explicitly
+temporary**, retire once real store builds exist (issue #18). Separate
+Netlify site (`fuelplan-app-preview`, project id
+`d15724d8-93ab-44d9-aae9-10034f14e8ad`) from the frozen web app's site —
+`fuelplan.fit` and `/hockeyprep` are a different codebase (`fuelplan-frontend`)
+and a different Netlify site, untouched by this.
+
+- **DNS**: `fuelplan.fit`'s zone is Netlify-managed (Netlify's own
+  nameservers, not the registrar's) — setting `custom_domain` via
+  `netlify api updateSite` on the new site auto-created the
+  `app.fuelplan.fit` DNS record in that same zone. No registrar changes
+  needed for future subdomains either, same trick applies.
+- **Build**: `npx expo export --platform web` (Expo Router's static
+  export — same command used for the whole session's dev-preview loop).
+  `netlify.toml`'s SPA-fallback redirect only applies after Netlify's own
+  static-file resolution fails (no `force = true`), so routes Expo
+  pre-rendered as real per-route HTML keep serving those directly —
+  the fallback exists only for genuinely dynamic paths (e.g.
+  `/recipes/<a real id>`) that no static file matches.
+- **Deploy is manual, not git-triggered**: `netlify deploy --prod --dir=dist`
+  after the export. Linking this site to auto-deploy on push would need
+  Netlify's dashboard OAuth flow to connect the GitHub repo, which isn't
+  scriptable headlessly — redeploy by hand after any change meant to
+  reach this URL.
+- **Real limitations of a web build, not bugs**: `expo-share-intent`
+  self-disables on web (no OS share sheet exists in a browser) and push
+  notifications don't work here either (would need reviving the web-push
+  infra that was deliberately removed when this project went native) —
+  both work fine in the real Android build. Auth, plan generation,
+  Fuel/Prep/Haul, and the Recipes tab (including manual paste/URL import)
+  all work the same as native.
+
 ## File structure
 - `src/app/` — Expo Router routes. `_layout.tsx` (root: providers +
   hydration gate + nav theme), `(auth)/` (login/signup/forgot-password/
@@ -305,7 +339,7 @@ design pass, not more agent work:**
 - `Onboarding` (web app's PWA-install-guide screen) was **not ported** —
   100% PWA-install-prompt content, not applicable natively.
 
-## Recipe box (Recipe M1-M4 code done; M4 on-device verification pending)
+## Recipe box (Recipe M1-M4 all done, verified on-device including the share sheet)
 Personal recipe library, separate from the AI-generated 7-day plan. No new
 AI-calling endpoint — extraction (`recipePrompt.ts`'s
 `buildExtractRecipeRequest`) and "Improve for Macros"
