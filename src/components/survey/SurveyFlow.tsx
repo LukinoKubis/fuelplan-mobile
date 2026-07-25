@@ -6,6 +6,7 @@ import { Step0Start } from './steps/Step0Start'
 import { Step1Training } from './steps/Step1Training'
 import { Step2Food } from './steps/Step2Food'
 import { Step3Macros } from './steps/Step3Macros'
+import { activityFromTrainingDays } from './options'
 import { LoadingOverlay } from '../shared/LoadingOverlay'
 import { ErrorPanel } from '../shared/ErrorPanel'
 import { usePlan } from '../../state/PlanContext'
@@ -150,13 +151,9 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
           {step === 1 && (
             <Step1Training
               trainingDays={profile.trainingDays}
-              onTrainingDays={(trainingDays) => patch({ trainingDays })}
+              onTrainingDays={(trainingDays) => patch({ trainingDays, activity: activityFromTrainingDays(trainingDays) })}
               trainingStyle={profile.trainingStyle}
               onTrainingStyle={(trainingStyle) => patch({ trainingStyle })}
-              cookingSkill={profile.cookingSkill}
-              onCookingSkill={(cookingSkill) => patch({ cookingSkill })}
-              prepTime={profile.prepTime}
-              onPrepTime={(prepTime) => patch({ prepTime })}
             />
           )}
           {step === 2 && (
@@ -169,6 +166,10 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
               onToggleCuisine={toggleCuisine}
               variety={profile.variety}
               onVariety={(variety) => patch({ variety })}
+              cookingSkill={profile.cookingSkill}
+              onCookingSkill={(cookingSkill) => patch({ cookingSkill })}
+              prepTime={profile.prepTime}
+              onPrepTime={(prepTime) => patch({ prepTime })}
             />
           )}
           {step === 3 && <Step3Macros profile={profile} onChange={patch} />}

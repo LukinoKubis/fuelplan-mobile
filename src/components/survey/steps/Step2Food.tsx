@@ -2,7 +2,7 @@ import { View } from 'react-native'
 import { Text } from '@/components/Text'
 import { Field } from '../../Field'
 import { CardGrid, VarietyGroup } from '../Chips'
-import { CUISINE_OPTIONS, VARIETY_OPTIONS } from '../options'
+import { COOKING_SKILL_OPTIONS, CUISINE_OPTIONS, PREP_TIME_OPTIONS, VARIETY_OPTIONS } from '../options'
 
 interface Step2Props {
   dietPref: string
@@ -13,10 +13,27 @@ interface Step2Props {
   onToggleCuisine: (v: string) => void
   variety: string
   onVariety: (v: string) => void
+  cookingSkill: string
+  onCookingSkill: (v: string) => void
+  prepTime: string
+  onPrepTime: (v: string) => void
 }
 
-/** Survey step 3/4 — dietary restrictions, disliked foods, cuisine preferences, meal variety. */
-export function Step2Food({ dietPref, onDietPref, dislikedFoods, onDislikedFoods, cuisines, onToggleCuisine, variety, onVariety }: Step2Props) {
+/** Survey step 3/4 — dietary restrictions, disliked foods, cuisine preferences, meal variety, cooking skill, and Sunday prep time. The last two moved here from Step1Training — they're food-prep questions, not training ones, and read as out of place under "How do you train?". */
+export function Step2Food({
+  dietPref,
+  onDietPref,
+  dislikedFoods,
+  onDislikedFoods,
+  cuisines,
+  onToggleCuisine,
+  variety,
+  onVariety,
+  cookingSkill,
+  onCookingSkill,
+  prepTime,
+  onPrepTime,
+}: Step2Props) {
   return (
     <View>
       <Text className="mb-1 text-xs font-bold uppercase tracking-wide text-orange">Step 3 of 4</Text>
@@ -37,6 +54,16 @@ export function Step2Food({ dietPref, onDietPref, dislikedFoods, onDislikedFoods
       <View className="mb-5">
         <Text className="mb-1.5 text-xs font-semibold text-light-muted dark:text-muted">Meal Variety</Text>
         <VarietyGroup options={VARIETY_OPTIONS} value={variety} onChange={onVariety} />
+      </View>
+
+      <View className="mb-5">
+        <Text className="mb-1.5 text-xs font-semibold text-light-muted dark:text-muted">Cooking Skill</Text>
+        <CardGrid options={COOKING_SKILL_OPTIONS} value={cookingSkill} onChange={onCookingSkill} columns={3} />
+      </View>
+
+      <View className="mb-5">
+        <Text className="mb-1.5 text-xs font-semibold text-light-muted dark:text-muted">Sunday Prep Time</Text>
+        <CardGrid options={PREP_TIME_OPTIONS} value={prepTime} onChange={onPrepTime} columns={3} />
       </View>
     </View>
   )

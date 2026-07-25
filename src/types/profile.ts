@@ -57,7 +57,7 @@ export const EMPTY_PROFILE: Profile = {
   height: '',
   age: '',
   sex: 'male',
-  activity: '1.375',
+  activity: '1.55', // matches activityFromTrainingDays('4') — see survey/options.ts
 
   mKcal: '',
   mProtein: '',

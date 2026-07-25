@@ -27,6 +27,7 @@ export function Step3Macros({ profile, onChange }: Step3Props) {
   const age = parseFloat(profile.age)
   const activity = parseFloat(profile.activity)
   const goalWeight = parseFloat(profile.goalWeight)
+  const activityLabel = ACTIVITY_OPTIONS.find((a) => a.value === profile.activity)?.label.split('—')[0].trim() || 'Moderately active'
 
   const goalWeightResult = useMemo(() => {
     if (profile.goalMode !== 'target' || !weight || !goalWeight) return null
@@ -101,23 +102,10 @@ export function Step3Macros({ profile, onChange }: Step3Props) {
             </View>
           </View>
 
-          <View className="mb-4">
-            <Text className="mb-1.5 text-xs font-semibold text-light-muted dark:text-muted">Activity Level</Text>
-            <View className="gap-2">
-              {ACTIVITY_OPTIONS.map((a) => {
-                const active = profile.activity === a.value
-                return (
-                  <Pressable
-                    key={a.value}
-                    onPress={() => onChange({ activity: a.value })}
-                    className="rounded-xl border px-3 py-2.5"
-                    style={{ borderColor: active ? c.lime : c.border, backgroundColor: active ? 'rgba(200,245,66,0.1)' : c.bg2 }}
-                  >
-                    <Text className="text-xs" style={{ color: active ? c.lime : c.text }}>{a.label}</Text>
-                  </Pressable>
-                )
-              })}
-            </View>
+          <View className="mb-4 rounded-xl border px-3 py-2.5" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
+            <Text className="text-xs" style={{ color: c.muted }}>
+              Activity level: <Text style={{ color: c.text }}>{activityLabel}</Text> — based on your {profile.trainingDays} training days/week from step 2
+            </Text>
           </View>
 
           <View className="mb-2.5 flex-row items-center justify-between">

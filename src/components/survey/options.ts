@@ -54,3 +54,19 @@ export const ACTIVITY_OPTIONS = [
   { value: '1.55', label: 'Moderately active — 3–5 days/week' },
   { value: '1.725', label: 'Very active — 6–7 days/week' },
 ]
+
+/**
+ * TDEE activity multiplier, derived from the training-days answer already
+ * collected in step 1 rather than asked again as its own question — the
+ * two used to be separate steps asking essentially "how many days do you
+ * work out" twice. `TRAINING_DAYS_OPTIONS` only goes down to 2 (no 0/1-day
+ * option exists yet), so "Sedentary" is a defensive fallback rather than a
+ * reachable path today.
+ */
+export function activityFromTrainingDays(trainingDays: string): string {
+  const days = parseInt(trainingDays, 10)
+  if (days >= 6) return '1.725'
+  if (days >= 4) return '1.55'
+  if (days >= 2) return '1.375'
+  return '1.2'
+}
