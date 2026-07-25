@@ -691,14 +691,20 @@ one Fuel tab uses) against the target set in step 0, so the user can see
 what's still missing or already overshot *before* finishing, not just
 after. On the final step, builds the real `days`/`meals` arrays from the
 selections, then — if at least one meal was actually picked — runs the
-*same* `buildPrepAndShoppingRequest()` AI call `SurveyFlow`'s Generate
-path uses, so Prep/Haul get real content instead of staying empty just
-because the meals were user-picked rather than algorithm-picked. That call
-costs one generation credit, same as Generate (skipped entirely, no
-credit spent, if the user picks zero meals in every slot). Any day still
-missing a slot afterward falls back to the existing empty/add-more-meal
-CTAs in `fuel/index.tsx` (`presetDay` route param into the library) —
-this wizard is a fast bulk-fill, not the only way to add a meal.
+*same* `buildPrepAndShoppingRequest()` `SurveyFlow`'s Generate path builds,
+but through `postClaudePrepAndShopping()` → `POST /api/claude/prep-and-shopping`
+(`claude-backend`), **not** `postClaude()`/`/api/claude` — so Prep/Haul get
+real content without spending a generation credit. That endpoint is
+`requireAuth` + rate-limited (8/hour) instead of credit-gated, with a
+6500-token cap (vs. `/api/claude/suggest`'s 1200 — too small for a full
+week's prep/shopping JSON, ~6000 tokens). Free was an explicit product
+call ("probably free for now, we're reworking the whole monetization to
+freemium anyway") — revisit whether this should decrement once that
+lands. Skipped entirely (no AI call, no rate-limit hit) if the user picks
+zero meals in every slot. Any day still missing a slot afterward falls
+back to the existing empty/add-more-meal CTAs in `fuel/index.tsx`
+(`presetDay` route param into the library) — this wizard is a fast
+bulk-fill, not the only way to add a meal.
 
 **One-shot "Get AI Advice"** (per day, from the Fuel tab): deliberately
 bounded — one short (2-4 sentence) targeted suggestion, never an
