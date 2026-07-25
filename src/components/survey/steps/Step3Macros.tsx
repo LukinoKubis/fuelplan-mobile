@@ -11,14 +11,18 @@ import { useThemeColors } from '../../../lib/themeColors'
 interface Step3Props {
   profile: Profile
   onChange: (patch: Partial<Profile>) => void
+  /** Hides the "Step 4 of 4" label — set when reused standalone (CustomPlanFlow) outside the numbered survey. */
+  hideStepLabel?: boolean
 }
 
 /**
  * Survey step 4/4 — either manual macro entry, or a calc-mode path (body
  * stats + activity + a goal, expressed as a quick-select preset or a
  * target-weight/pace pair) that live-previews the resulting daily targets.
+ * Also reused standalone by CustomPlanFlow, since macro targets are the one
+ * thing even a self-built plan can't do without.
  */
-export function Step3Macros({ profile, onChange }: Step3Props) {
+export function Step3Macros({ profile, onChange, hideStepLabel }: Step3Props) {
   const c = useThemeColors()
   const setMode = (mode: MacroMode) => onChange({ mode })
 
@@ -43,7 +47,7 @@ export function Step3Macros({ profile, onChange }: Step3Props) {
 
   return (
     <View>
-      <Text className="mb-1 text-xs font-bold uppercase tracking-wide text-lime">Step 4 of 4</Text>
+      {!hideStepLabel && <Text className="mb-1 text-xs font-bold uppercase tracking-wide text-lime">Step 4 of 4</Text>}
       <Text className="mb-2 font-display text-3xl leading-tight text-light-text dark:text-text">Macros &{'\n'}your goal</Text>
       <Text className="mb-6 text-sm text-light-muted dark:text-muted">Set your daily targets. Enter them yourself or let us calculate from your stats.</Text>
 

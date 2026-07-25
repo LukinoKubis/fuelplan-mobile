@@ -7,6 +7,8 @@ import Svg, { Path, Polyline } from 'react-native-svg'
 import { usePlan } from '../../../state/PlanContext'
 import { useAccount } from '../../../state/AccountContext'
 import { SurveyFlow } from '../../../components/survey/SurveyFlow'
+import { CustomPlanFlow } from '../../../components/survey/CustomPlanFlow'
+import { NewPlanChooser } from '../../../components/survey/NewPlanChooser'
 import { DayTabs } from '../../../components/fuel/DayTabs'
 import { DayMacroBar } from '../../../components/fuel/DayMacroBar'
 import { MealCard } from '../../../components/fuel/MealCard'
@@ -29,6 +31,12 @@ export default function FuelScreen() {
   })
 
   const showSurvey = !plan || surveyMode
+  // Which new-plan path is active. null only happens for a brand-new user
+  // (no plan yet) before they've picked one — NewPlanChooser handles that
+  // case. Existing users pick directly via the two header pills below,
+  // which always set this alongside setSurveyMode(true), so it's never
+  // null when a plan already exists.
+  const [flowMode, setFlowMode] = useState<'survey' | 'custom' | null>(null)
 
   const [advice, setAdvice] = useState<{ day: number; text: string } | null>(null)
   const [adviceLoading, setAdviceLoading] = useState(false)
@@ -62,18 +70,36 @@ export default function FuelScreen() {
   }
 
   if (showSurvey) {
+    if (!flowMode) {
+      return <NewPlanChooser onGenerate={() => setFlowMode('survey')} onCustom={() => setFlowMode('custom')} />
+    }
     return (
-      <ErrorBoundary onReset={() => setSurveyMode(false)}>
-        <SurveyFlow
-          onGenerated={() => {
-            setSurveyMode(false)
-            setActiveDay(0)
-            router.push('/modal/plan-name')
-          }}
-          onBuyPlans={handleBuyPlans}
-          canCancel={!!plan}
-          onCancel={() => setSurveyMode(false)}
-        />
+      <ErrorBoundary onReset={() => { setSurveyMode(false); setFlowMode(null) }}>
+        {flowMode === 'survey' ? (
+          <SurveyFlow
+            onGenerated={() => {
+              setSurveyMode(false)
+              setFlowMode(null)
+              setActiveDay(0)
+              router.push('/modal/plan-name')
+            }}
+            onBuyPlans={handleBuyPlans}
+            canCancel
+            onCancel={() => { setSurveyMode(false); setFlowMode(null) }}
+          />
+        ) : (
+          <CustomPlanFlow
+            onCreated={() => {
+              setSurveyMode(false)
+              setFlowMode(null)
+              setActiveDay(0)
+              router.push('/modal/plan-name')
+            }}
+            onBuyPlans={handleBuyPlans}
+            canCancel
+            onCancel={() => { setSurveyMode(false); setFlowMode(null) }}
+          />
+        )}
       </ErrorBoundary>
     )
   }
@@ -84,18 +110,31 @@ export default function FuelScreen() {
   return (
     <ErrorBoundary onReset={() => setActiveDay(0)}>
       <View className="flex-1 bg-light-bg dark:bg-bg">
-        <View className="flex-row items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: c.border, backgroundColor: c.card }}>
+        <View className="gap-2 border-b px-4 py-3" style={{ borderColor: c.border, backgroundColor: c.card }}>
           <View className="flex-row gap-2">
             <Pressable
-              onPress={() => setSurveyMode(true)}
-              className="flex-row items-center gap-1.5 rounded-xl px-3.5 py-2"
+              onPress={() => { setSurveyMode(true); setFlowMode('survey') }}
+              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl px-3 py-2"
               style={{ backgroundColor: c.lime }}
             >
               <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#0e0f11" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M12 5v14M5 12h14" />
               </Svg>
-              <Text className="text-xs font-extrabold text-bg">New Plan</Text>
+              <Text className="text-xs font-extrabold text-bg">Generate</Text>
             </Pressable>
+            <Pressable
+              onPress={() => { setSurveyMode(true); setFlowMode('custom') }}
+              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-3 py-2"
+              style={{ borderColor: c.border, backgroundColor: c.bg2 }}
+            >
+              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={c.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </Svg>
+              <Text className="text-xs font-bold" style={{ color: c.text }}>Custom</Text>
+            </Pressable>
+          </View>
+          <View className="flex-row items-center justify-between gap-2">
             <Pressable
               onPress={() => router.push('/modal/history')}
               className="flex-row items-center gap-1.5 rounded-xl border px-3.5 py-2"
@@ -107,14 +146,14 @@ export default function FuelScreen() {
               </Svg>
               <Text className="text-xs font-bold" style={{ color: c.text }}>My Plans</Text>
             </Pressable>
+            {remaining !== null && (
+              <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: remaining === 0 ? 'rgba(255,87,87,0.15)' : c.bg2 }}>
+                <Text className="text-[11px] font-semibold" style={{ color: remaining === 0 ? c.red : c.muted }}>
+                  {remaining === 0 ? 'No plans left' : `${remaining} plans left`}
+                </Text>
+              </View>
+            )}
           </View>
-          {remaining !== null && (
-            <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: remaining === 0 ? 'rgba(255,87,87,0.15)' : c.bg2 }}>
-              <Text className="text-[11px] font-semibold" style={{ color: remaining === 0 ? c.red : c.muted }}>
-                {remaining === 0 ? 'No plans left' : `${remaining} plans left`}
-              </Text>
-            </View>
-          )}
         </View>
 
         <DayTabs days={plan.days.map((d) => d.day)} active={activeDay} onChange={setActiveDay} />
