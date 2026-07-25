@@ -39,6 +39,13 @@ export const CUISINE_OPTIONS: ChipOption[] = [
   { value: 'Mexican', label: 'Mexican' },
   { value: 'American', label: 'American' },
   { value: 'European', label: 'European' },
+  // Matches the exact cuisine string seeded on the "Gym Bro" library
+  // batch (claude-backend's /api/admin/seed-library with cuisine: "Gym
+  // Bro") -- chicken/rice/broccoli-style bodybuilding staples, simple and
+  // very high protein-density. cuisineBonus() in planAssembly.ts matches
+  // on substring, case-insensitive, so this has to line up with that seed
+  // value.
+  { value: 'Gym Bro', label: 'Gym Bro 💪' },
   { value: 'no preference', label: 'No preference' },
 ]
 
