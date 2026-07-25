@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
+import Svg, { Path, Polyline } from 'react-native-svg'
 import { usePlan } from '../../../state/PlanContext'
 import { useAccount } from '../../../state/AccountContext'
 import { SurveyFlow } from '../../../components/survey/SurveyFlow'
@@ -59,18 +60,37 @@ export default function FuelScreen() {
   return (
     <ErrorBoundary onReset={() => setActiveDay(0)}>
       <View className="flex-1 bg-light-bg dark:bg-bg">
-        <View className="flex-row items-center justify-between border-b px-4 py-2.5" style={{ borderColor: c.border, backgroundColor: c.card }}>
+        <View className="flex-row items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: c.border, backgroundColor: c.card }}>
           <View className="flex-row gap-2">
-            <Pressable onPress={() => router.push('/modal/history')} className="rounded-lg border px-2.5 py-1.5" style={{ borderColor: c.border }}>
-              <Text className="text-xs font-semibold" style={{ color: c.muted }}>My Plans</Text>
+            <Pressable
+              onPress={() => setSurveyMode(true)}
+              className="flex-row items-center gap-1.5 rounded-xl px-3.5 py-2"
+              style={{ backgroundColor: c.lime }}
+            >
+              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#0e0f11" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M12 5v14M5 12h14" />
+              </Svg>
+              <Text className="text-xs font-extrabold text-bg">New Plan</Text>
             </Pressable>
-            <Pressable onPress={() => setSurveyMode(true)} className="rounded-lg border px-2.5 py-1.5" style={{ borderColor: c.border }}>
-              <Text className="text-xs font-semibold" style={{ color: c.muted }}>New Plan</Text>
+            <Pressable
+              onPress={() => router.push('/modal/history')}
+              className="flex-row items-center gap-1.5 rounded-xl border px-3.5 py-2"
+              style={{ borderColor: c.border, backgroundColor: c.bg2 }}
+            >
+              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={c.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" />
+                <Polyline points="12 6 12 12 16 14" />
+              </Svg>
+              <Text className="text-xs font-bold" style={{ color: c.text }}>My Plans</Text>
             </Pressable>
           </View>
-          <Text className="text-xs" style={{ color: c.muted }}>
-            {remaining === null ? '' : remaining === 0 ? <Text style={{ color: c.red }}>No plans left</Text> : `${remaining} plans left`}
-          </Text>
+          {remaining !== null && (
+            <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: remaining === 0 ? 'rgba(255,87,87,0.15)' : c.bg2 }}>
+              <Text className="text-[11px] font-semibold" style={{ color: remaining === 0 ? c.red : c.muted }}>
+                {remaining === 0 ? 'No plans left' : `${remaining} plans left`}
+              </Text>
+            </View>
+          )}
         </View>
 
         <DayTabs days={plan.days.map((d) => d.day)} active={activeDay} onChange={setActiveDay} />
