@@ -436,7 +436,7 @@ recipes without one yet — saves immediately via the existing
 upsert-by-id call). Stored as a base64 data URI directly on `Recipe.photo`
 — purely cosmetic, unrelated to extraction.
 
-## Shared recipe library (Library M1-M3 done; M4 — grounding plan generation in it — not started)
+## Shared recipe library (Library M1-M5 all done — plan generation is now fully library-driven, no AI invents meals anymore)
 A separate, admin-seeded catalog every user reads the same copy of —
 distinct from the personal recipe box above. `recipes/library.tsx`
 (browse/search/category filter) and `recipes/library-detail.tsx`
@@ -466,6 +466,76 @@ showing. Fixed the same way `recipes/index.tsx` already handled this for
 the personal list — swapped the plain `useEffect` for `useFocusEffect`
 (re-exported from `expo-router`) so the library also refetches every time
 the screen regains focus, not just when its own filters change.
+
+**M4-then-superseded**: M4 was originally built as a lighter-weight
+"grounding" pass — feeding a compact list of library recipe names into
+the existing full-AI-generation prompt as a hint. That shipped, then was
+immediately superseded by M5 (below), which replaces AI generation
+entirely rather than just nudging it. Worth knowing if `git log` turns up
+`libraryGrounding.ts`/the old `generatePrompt.ts` — both were deleted in
+the M5 commit, not deprecated in place.
+
+## Plan generation (Library M5) — algorithmic, not AI
+`SurveyFlow.tsx`'s "Generate My Plan" no longer asks an LLM to invent 28
+meals from scratch. Instead:
+1. **Pick + scale, zero AI** (`planAssembly.ts`'s `assemblePlanFromLibrary`)
+   — for each of the 7 days x 4 slots (breakfast/lunch/snack/dinner), score
+   every candidate in that category's full library pool against the slot's
+   proportional macro sub-target (protein weighted heaviest — it's the
+   macro real recipes vary most in density), scale the winner's macros and
+   ingredient quantities to fit (bounded 0.5x-2.2x), then run a bounded
+   local-search repair pass (`repairDay`) that swaps toward a better
+   day-level macro fit before a final kcal-precision correction. Dietary
+   restrictions/dislikes are filtered by keyword match against
+   name+ingredients; cuisine preference and the variety setting (repeat/
+   some/diverse) bias selection via the same scoring function.
+2. **One small AI call** (`prepAndShoppingPrompt.ts`) turns the already-
+   decided week into Sunday batch-cook steps + a merged shopping list —
+   the two pieces that still benefit from an LLM (grouping shared prep,
+   summing repeated ingredients like "3 eggs" + "2 eggs"). Far cheaper and
+   more reliable than the old single 16k-token generation, since its input
+   is already fully structured. Still costs one generation credit (decrement
+   lives in `/api/claude`, still called here).
+
+Verified end-to-end across several live generations: kcal and protein
+consistently land exactly or within a few grams of target using only the
+~100-recipe library that exists today; carbs/fat are secondary and land
+within a looser range (matches typical macro-tracking priority).
+
+**Real bugs hit and fixed at launch:**
+- **Ingredient over-scaling**: `formatIngredients()` scaled a recipe's
+  *whole-batch* ingredient quantities (e.g. `"6 large"` eggs on a
+  4-serving recipe) by the macro-fit factor without first dividing by the
+  recipe's own `servings` — produced absurd amounts like "11 large eggs"
+  for a single meal. Fixed by combining the fit factor with a `1/servings`
+  divisor into one `perServingFactor` before scaling.
+- **Repeated AI schema drift**, worse than the earlier M4 grounding
+  incident: across three live generations, Claude returned a
+  `batch_cook_plan` object with its own invented `sessions` structure
+  instead of the flat `prep_tasks` array (the system prompt had said
+  "Sunday batch-cook plan" prominently, which it apparently took as a
+  literal field-name suggestion — removed that phrasing entirely), then
+  kept grouping `prep_tasks` under session wrappers even after that fix,
+  then dropped `shopping_list`'s category grouping down to a flat list.
+  Fixed with much blunter prompt language that explicitly names the wrong
+  shapes seen in practice ("do NOT nest tasks inside a session wrapper —
+  that is wrong even if it feels more organized") — **plus** defensive
+  normalization as a backstop regardless of prompt compliance:
+  `normalizePrepTasks()` flattens a session-wrapped response back into
+  real tasks, and `normalizeShoppingList()` (extended, see the M4 entry
+  above) now also catches a flat item list with no category grouping,
+  bucketing it under one "Groceries" fallback category rather than losing
+  it. Both wired into `PlanContext`'s `SET_PLAN`, same as the earlier
+  shopping-list fix. Lesson reinforced: don't trust a single hardened
+  prompt attempt to be the whole fix for a real-world LLM JSON task —
+  pair it with defensive parsing on the client.
+
+**Known gap, not yet addressed**: `PlanContext`'s meal-name favorites
+(the "favorite this meal" heart from the old AI-generation flow, meant to
+bias future generations toward liking those meals again) has no effect on
+the new algorithmic selection — `planAssembly.ts`'s scoring has no
+favorites input. Not wired up yet; worth a follow-up if it turns out to
+matter to users now that it's silently inert rather than removed.
 
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
