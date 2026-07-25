@@ -574,13 +574,15 @@ biases selection toward the user's `cookingSkill` (already collected in
 the survey) — a matching recipe gets a bonus, one two tiers off (e.g. a
 beginner cook, an advanced recipe) gets a penalty.
 
-**Known gap, not yet addressed**: `PlanContext`'s meal-name favorites
-(the "favorite this meal" heart from the old AI-generation flow, meant to
-bias future generations toward liking those meals again) has no effect on
-the new algorithmic selection — `planAssembly.ts`'s scoring has no
-favorites input. Not wired up yet; worth a follow-up if it turns out to
-matter to users now that it's silently inert rather than removed. Tracked
-as issue #26.
+**Meal-name favorites now bias selection** (fixed issue #26 — was
+previously a silently inert gap left over from the old AI-generation
+flow). `favoriteBonus()` gives a recipe an exact-case-insensitive-name
+match against `PlanContext`'s favorites the same kind of scoring bonus
+`cuisineBonus()` already gives, threaded through
+`selectRotationPool`/`initialPickForSlot`/`repairDay`. Deliberately exact
+match only, no fuzzy/partial name overlap — that risked matching
+unrelated recipes (e.g. "Chicken Rice Bowl" vs "Beef Rice Bowl") more
+than it helped.
 
 **Real bug hit and fixed post-launch: protein scoring was symmetric,
 causing systematic undershoot.** `dayError()`'s macro-fit scoring penalized
