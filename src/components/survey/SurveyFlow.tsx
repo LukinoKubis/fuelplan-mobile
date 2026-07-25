@@ -11,10 +11,10 @@ import { ErrorPanel } from '../shared/ErrorPanel'
 import { usePlan } from '../../state/PlanContext'
 import { useAccount } from '../../state/AccountContext'
 import { ApiError, postClaude } from '../../lib/client'
-import { buildGenerateRequest } from '../../lib/generatePrompt'
-import { getGroundingCandidates } from '../../lib/libraryGrounding'
+import { assemblePlanFromLibrary, getLibraryPools } from '../../lib/planAssembly'
+import { buildPrepAndShoppingRequest } from '../../lib/prepAndShoppingPrompt'
 import { resolveProfileMacros } from '../../lib/macros'
-import type { Plan } from '../../types/plan'
+import type { Plan, PrepTask, ShoppingCategory } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'
 import { friendlyErrorMessage } from '../../lib/errorMessage'
 
@@ -35,7 +35,7 @@ interface SurveyFlowProps {
  */
 export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: SurveyFlowProps) {
   const c = useThemeColors()
-  const { profile, setProfile, setPlan, favorites } = usePlan()
+  const { profile, setProfile, setPlan } = usePlan()
   const { refreshRemaining } = useAccount()
 
   const [step, setStep] = useState(0)
@@ -50,7 +50,16 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     setProfile({ cuisines: exists ? profile.cuisines.filter((v) => v !== value) : [...profile.cuisines, value] })
   }
 
-  /** Resolves macros, calls Claude, parses the returned plan JSON, and saves it — the "Generate My Plan" action. */
+  /**
+   * Resolves macros, assembles the week algorithmically from the shared
+   * recipe library (no AI — see planAssembly.ts), then makes one small AI
+   * call to turn those already-decided meals into batch-cook steps + a
+   * merged shopping list. Replaces the old single 16k-token full-plan
+   * generation entirely (see issue #25) — "Generate My Plan" still costs
+   * one generation credit (the credit decrement lives in /api/claude,
+   * still called here for the prep+shopping step), it just no longer
+   * spends tokens inventing the meals themselves.
+   */
   async function handleGenerate() {
     const macros = resolveProfileMacros(profile)
     if (!macros) {
@@ -64,8 +73,10 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     abortRef.current = new AbortController()
 
     try {
-      const libraryCandidates = await getGroundingCandidates(profile.cuisines)
-      const { system, messages, model, max_tokens } = buildGenerateRequest({ profile, macros, favorites, libraryCandidates })
+      const pools = await getLibraryPools()
+      const days = assemblePlanFromLibrary(macros, profile, pools)
+
+      const { system, messages, model, max_tokens } = buildPrepAndShoppingRequest(days)
       const response = await postClaude({ model, max_tokens, system, messages }, abortRef.current.signal)
       const rawText = response.content[0]?.text || ''
       const cleaned = rawText
@@ -74,14 +85,16 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
         .replace(/```\s*$/i, '')
         .trim()
 
-      let plan: Plan
+      let extra: { prep_tasks?: PrepTask[]; shopping_list?: ShoppingCategory[] }
       try {
-        plan = JSON.parse(cleaned)
+        extra = JSON.parse(cleaned)
       } catch {
         const match = cleaned.match(/\{[\s\S]*\}/)
         if (!match) throw new Error('Got invalid JSON back. Please try again.')
-        plan = JSON.parse(match[0])
+        extra = JSON.parse(match[0])
       }
+
+      const plan: Plan = { summary: macros, prep_tasks: extra.prep_tasks || [], days, shopping_list: extra.shopping_list || [] }
 
       setPlan(plan, profile.name.trim() || 'Your')
       setLoading(false)

@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useReducer, useState
 import type { Meal, Plan } from '../types/plan'
 import { EMPTY_PROFILE, type Profile } from '../types/profile'
 import { loadJSON, remove, saveJSON, STORAGE_KEYS } from '../lib/storage'
-import { normalizeShoppingList } from '../lib/normalizePlan'
+import { normalizePrepTasks, normalizeShoppingList } from '../lib/normalizePlan'
 
 interface PlanState {
   plan: Plan | null
@@ -54,7 +54,7 @@ function reducer(state: PlanState, action: Action): PlanState {
     case 'SET_PLAN':
       return {
         ...state,
-        plan: { ...action.plan, shopping_list: normalizeShoppingList(action.plan.shopping_list) },
+        plan: { ...action.plan, prep_tasks: normalizePrepTasks(action.plan.prep_tasks), shopping_list: normalizeShoppingList(action.plan.shopping_list) },
         userName: action.userName,
         planName: action.planName ?? '',
         shopChecks: {},

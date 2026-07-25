@@ -47,7 +47,7 @@ export interface ClaudeMessage {
   content: string
 }
 
-/** A system prompt block — can carry a `cache_control` breakpoint (see generatePrompt.ts). */
+/** A system prompt block — can carry a `cache_control` breakpoint (see prepAndShoppingPrompt.ts/recipePrompt.ts). */
 export interface SystemBlock {
   type: 'text'
   text: string

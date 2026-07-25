@@ -1,6 +1,7 @@
 import type { DayPlan, Macros, Meal } from '../types/plan'
 import type { LibraryRecipe } from '../types/recipeLibrary'
 import type { Profile } from '../types/profile'
+import { getRecipeLibrary } from './client'
 
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -56,8 +57,17 @@ function scaleQtyString(qty: string, factor: number): string {
   return `${scaled}${m[2]}`
 }
 
+// `recipe.ingredients[i].qty` is the WHOLE recipe's quantity (e.g. "6 large"
+// on a recipe that serves 4), not a per-serving amount — has to be divided
+// by the recipe's own servings before applying the macro-fit factor, or
+// quantities come out inflated by the recipe's original serving count.
+// Real bug hit and fixed: a 4-serving recipe scaled to a ~1.86x macro-fit
+// factor produced "11 large eggs" for a single meal (6 raw the recipe
+// calls for x 1.86, never divided by 4) instead of the correct ~2.75.
 function formatIngredients(recipe: LibraryRecipe, factor: number): string {
-  return recipe.ingredients.map((i) => (i.qty ? `${scaleQtyString(i.qty, factor)} ${i.name}` : i.name)).join(', ')
+  const servings = recipe.servings > 0 ? recipe.servings : 1
+  const perServingFactor = factor / servings
+  return recipe.ingredients.map((i) => (i.qty ? `${scaleQtyString(i.qty, perServingFactor)} ${i.name}` : i.name)).join(', ')
 }
 
 /** Best-effort keyword match against a recipe's name + ingredient names — same spirit as the AI prompt's existing dislikedFoods handling, just enforced algorithmically instead of trusted to a model. */
@@ -190,6 +200,14 @@ function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCount
  * correction so the day's kcal total lands almost exactly on target.
  */
 export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools: LibraryPools): DayPlan[] {
+  // A true content gap (library not seeded, or a fetch that "succeeded"
+  // with nothing in it) — fail loudly here rather than silently returning
+  // 7 empty days. Scaling handles the magnitude problem (see module doc),
+  // but there's nothing to scale if a category has zero recipes.
+  if (!pools.breakfast.length && !pools.lunch.length && !pools.dinner.length && !pools.snack.length) {
+    throw new Error('The recipe library is empty — nothing to build a plan from yet.')
+  }
+
   const disliked = profile.dislikedFoods
     .split(',')
     .map((s) => s.trim().toLowerCase())
@@ -249,4 +267,15 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
   }
 
   return days
+}
+
+/** Fetches the full library, one category at a time — unlike libraryGrounding.ts's old compact sample, assemblePlanFromLibrary needs the whole pool to actually pick from, not just a naming hint. */
+export async function getLibraryPools(): Promise<LibraryPools> {
+  const [breakfast, lunch, dinner, snack] = await Promise.all([
+    getRecipeLibrary({ category: 'breakfast' }),
+    getRecipeLibrary({ category: 'lunch' }),
+    getRecipeLibrary({ category: 'dinner' }),
+    getRecipeLibrary({ category: 'snack' }),
+  ])
+  return { breakfast: breakfast.recipes, lunch: lunch.recipes, dinner: dinner.recipes, snack: snack.recipes }
 }
