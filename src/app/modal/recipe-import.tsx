@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { Text } from '@/components/Text'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Line } from 'react-native-svg'
@@ -49,6 +49,7 @@ export default function RecipeImportScreen() {
   const [videoContext, setVideoContext] = useState('')
   const [oEmbedDone, setOEmbedDone] = useState(false)
   const [videoReadDone, setVideoReadDone] = useState(false)
+  const [videoEmptyWarning, setVideoEmptyWarning] = useState('')
   const warnedEmptyRef = useRef(false)
   const [igReading, setIgReading] = useState(false)
   const [igFailed, setIgFailed] = useState(false)
@@ -109,6 +110,7 @@ export default function RecipeImportScreen() {
     setVideoReading(true)
     setVideoNote('')
     setVideoReadDone(false)
+    setVideoEmptyWarning('')
     warnedEmptyRef.current = false
     extractVideoText(sourceUrl)
       .then((result) => {
@@ -138,13 +140,17 @@ export default function RecipeImportScreen() {
   // transcript, no on-screen text) — some videos are just B-roll of someone
   // cooking with no readable text at all, and silently leaving an empty
   // field is confusing. Doesn't block manual typing — just an early heads-up.
+  // Uses the same inline-message pattern as `error` below rather than RN's
+  // Alert — react-native-web's Alert.alert is a total no-op stub (confirmed
+  // by reading node_modules/react-native-web's source: `static alert() {}`),
+  // so on the real web deploy at app.fuelplan.fit this would otherwise
+  // silently do nothing.
   useEffect(() => {
     if (!isTikTok || !oEmbedDone || !videoReadDone || warnedEmptyRef.current) return
     if (!rawText.trim() && !videoContext.trim()) {
       warnedEmptyRef.current = true
-      Alert.alert(
-        "Couldn't read this video",
-        "No caption and nothing readable in the video itself — this one might just be B-roll with no recipe text. Try pasting the recipe manually, or a different TikTok link."
+      setVideoEmptyWarning(
+        "Couldn't find anything to import from this video — no caption and nothing readable in the video itself. Try pasting the recipe manually, or a different TikTok link."
       )
     }
   }, [isTikTok, oEmbedDone, videoReadDone, rawText, videoContext])
@@ -316,7 +322,9 @@ export default function RecipeImportScreen() {
               {isTikTok
                 ? prefetching
                   ? 'TikTok link — fetching the caption…'
-                  : 'TikTok link — caption filled in below.'
+                  : rawText.trim()
+                    ? 'TikTok link — caption filled in below.'
+                    : "TikTok link — couldn't find a caption automatically, paste it below."
                 : isInstagram
                   ? igReading
                     ? 'Instagram link — reading the caption…'
@@ -339,6 +347,11 @@ export default function RecipeImportScreen() {
         ) : (
           <View className="mb-3" />
         )}
+        {videoEmptyWarning ? (
+          <View className="mb-3 rounded-xl border px-3 py-2.5" style={{ borderColor: c.orange, backgroundColor: 'rgba(255,154,66,0.1)' }}>
+            <Text className="text-xs" style={{ color: c.orange }}>{videoEmptyWarning}</Text>
+          </View>
+        ) : null}
         <TextInput
           autoFocus
           multiline
