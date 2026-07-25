@@ -36,6 +36,7 @@ export default function ModalLayout() {
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="history" options={{ title: 'My Plans' }} />
       <Stack.Screen name="recipe-import" options={{ title: 'Add a Recipe' }} />
+      <Stack.Screen name="feedback" options={{ title: 'Send Feedback' }} />
       <Stack.Screen name="plan-name" options={{ title: 'Name your plan', presentation: 'formSheet', headerLeft: () => null }} />
     </Stack>
   )

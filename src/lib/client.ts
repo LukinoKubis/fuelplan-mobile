@@ -245,6 +245,26 @@ export async function createCheckout(plan: '5' | '10' | '20'): Promise<{ url: st
   return response.json()
 }
 
+/** Deletes the signed-in user's account and all server-side data. Caller is responsible for clearing local state and logging out afterward. */
+export async function deleteAccount(): Promise<{ ok: boolean }> {
+  const response = await fetch(`${API_BASE}/api/account/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
+export async function submitFeedback(message: string): Promise<{ ok: boolean }> {
+  const response = await fetch(`${API_BASE}/api/feedback/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ message }),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────
 export interface AuthResponse {
   token: string

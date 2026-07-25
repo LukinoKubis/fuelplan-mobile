@@ -8,10 +8,12 @@ import { SettingsAction } from '../../components/shared/SettingsAction'
 import { useTheme } from '../../state/ThemeContext'
 import { usePlan } from '../../state/PlanContext'
 import { useAccount } from '../../state/AccountContext'
-import { createCheckout } from '../../lib/client'
+import { createCheckout, deleteAccount } from '../../lib/client'
 import { useThemeColors } from '../../lib/themeColors'
 import { registerForPushNotificationsAsync, subscribePush, unsubscribePush } from '../../lib/pushNotifications'
 import { loadString, remove, saveString, STORAGE_KEYS } from '../../lib/storage'
+
+const PRIVACY_POLICY_URL = 'https://fuelplan.fit/privacy.html'
 
 /** Settings modal — profile summary, plan actions, appearance toggle, push toggle, data resets, logout/full-reset. */
 export default function SettingsScreen() {
@@ -21,6 +23,9 @@ export default function SettingsScreen() {
   const { profile, resetEaten, resetShopChecks, clearPlan } = usePlan()
   const { email, remaining, logout } = useAccount()
   const [resetConfirm, setResetConfirm] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [topupBusy, setTopupBusy] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
@@ -92,6 +97,25 @@ export default function SettingsScreen() {
     router.replace('/(auth)/login')
   }
 
+  /** Two-tap confirm, then actually deletes the account server-side (not just local data — see claude-backend's /api/account/delete) before logging out. */
+  async function handleDeleteAccount() {
+    if (!deleteConfirm) {
+      setDeleteConfirm(true)
+      return
+    }
+    setDeleteBusy(true)
+    setDeleteError('')
+    try {
+      await deleteAccount()
+      clearPlan()
+      logout()
+      router.replace('/(auth)/login')
+    } catch {
+      setDeleteError("Couldn't delete your account — try again.")
+      setDeleteBusy(false)
+    }
+  }
+
   return (
     <ScrollView contentContainerClassName="p-4" style={{ backgroundColor: c.bg }}>
       <View className="mb-5 rounded-xl border p-3.5" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
@@ -136,20 +160,42 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Feedback</Text>
+      <View className="mb-4">
+        <SettingsAction icon={<FeedbackIcon />} title="Send Feedback" desc="Suggest a feature, report a bug — we read every message" onPress={() => router.push('/modal/feedback')} />
+      </View>
+
       <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Data</Text>
       <View className="mb-4 gap-2">
         <SettingsAction icon={<ResetIcon />} iconColor={c.blue} title="Reset Week Tracking" desc="Clear all eaten meals for a fresh start" onPress={resetEaten} />
         <SettingsAction icon={<CartIcon />} iconColor={c.orange} title="Reset Shopping List" desc="Uncheck all ticked items to shop again" onPress={resetShopChecks} />
         <SettingsAction icon={<BoltIcon />} title="Top Up Plans" desc={topupBusy ? 'Opening checkout…' : 'Buy more AI-generated meal plans'} onPress={handleTopUp} />
+      </View>
+
+      <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Account</Text>
+      <View className="mb-4 gap-2">
         <SettingsAction icon={<LogoutIcon />} title="Log Out" desc="Sign out of this account on this device" onPress={() => { logout(); router.replace('/(auth)/login') }} />
         <SettingsAction
           icon={<TrashIcon />}
           iconColor={c.red}
           danger
           title={resetConfirm ? 'Tap again to confirm' : 'Full Reset'}
-          desc="Clear everything — plan and profile on this device"
+          desc="Clear everything — plan and profile on this device only"
           onPress={handleFullReset}
         />
+        <SettingsAction
+          icon={<DeleteIcon />}
+          iconColor={c.red}
+          danger
+          title={deleteBusy ? 'Deleting…' : deleteConfirm ? 'Tap again to confirm' : 'Delete Account'}
+          desc={deleteError || 'Permanently deletes your account and all data from our servers'}
+          onPress={handleDeleteAccount}
+        />
+      </View>
+
+      <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Legal</Text>
+      <View className="mb-4">
+        <SettingsAction icon={<DocIcon />} title="Privacy Policy" desc="What we collect and why" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)} />
       </View>
 
       <Text className="mt-2 text-center text-[11px] leading-relaxed" style={{ color: c.muted }}>
@@ -258,6 +304,35 @@ function BellIcon() {
     <Svg {...ICON_PROPS} stroke={c.lime}>
       <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </Svg>
+  )
+}
+function FeedbackIcon() {
+  const c = useThemeColors()
+  return (
+    <Svg {...ICON_PROPS} stroke={c.lime}>
+      <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </Svg>
+  )
+}
+function DeleteIcon() {
+  const c = useThemeColors()
+  return (
+    <Svg {...ICON_PROPS} stroke={c.red}>
+      <Circle cx={12} cy={12} r={10} />
+      <Line x1={15} y1={9} x2={9} y2={15} />
+      <Line x1={9} y1={9} x2={15} y2={15} />
+    </Svg>
+  )
+}
+function DocIcon() {
+  const c = useThemeColors()
+  return (
+    <Svg {...ICON_PROPS} stroke={c.text}>
+      <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <Polyline points="14 2 14 8 20 8" />
+      <Line x1={8} y1={13} x2={16} y2={13} />
+      <Line x1={8} y1={17} x2={16} y2={17} />
     </Svg>
   )
 }
