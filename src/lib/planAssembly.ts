@@ -1,7 +1,6 @@
 import type { DayPlan, Macros, Meal } from '../types/plan'
 import type { LibraryRecipe } from '../types/recipeLibrary'
 import type { Profile } from '../types/profile'
-import { getRecipeLibrary } from './client'
 
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -77,10 +76,9 @@ function conflictsWithDislikes(recipe: LibraryRecipe, disliked: string[]): boole
   return disliked.some((d) => d && text.includes(d))
 }
 
-function varietyPenalty(usedCount: number, variety: string): number {
-  if (variety === 'fully diverse') return usedCount * 500
-  if (variety === 'repeat') return usedCount === 0 ? 30 : 0
-  return usedCount * 60 // "some variety" — discourage repeats without forbidding them
+/** Soft nudge away from reusing an already-used recipe — the actual variety cap comes from selectRotationPool() below limiting the pool size itself, not from this penalty. Still useful as a tie-breaker so a 2-or-3-recipe rotation pool actually alternates rather than always picking the single best-fitting one. */
+function repeatPenalty(usedCount: number): number {
+  return usedCount * 60
 }
 
 function bestFactorForTarget(recipe: LibraryRecipe, targetKcal: number): number {
@@ -125,16 +123,37 @@ function dayError(totals: Macros, target: Macros): number {
   )
 }
 
-function initialPickForSlot(pool: LibraryRecipe[], target: Macros, usedCounts: Map<number, number>, variety: string, preferredCuisines: string[]): { recipe: LibraryRecipe; factor: number } | null {
+function cuisineBonus(recipe: LibraryRecipe, preferredCuisines: string[]): number {
+  return preferredCuisines.some((c) => recipe.cuisine.toLowerCase().includes(c.toLowerCase())) ? 20 : 0
+}
+
+/**
+ * Picks the top `count` distinct recipes for a slot against its macro
+ * sub-target — this is what actually enforces "switch between at most N
+ * meals", not a soft penalty. Meal prep is repetitive by design (the
+ * user's framing: "usually people switch between 2 lunches at max"), so
+ * rather than freely picking from the whole category pool every day, the
+ * week's pool for a slot is capped to this small set up front, and the
+ * per-day picks below (initialPickForSlot/repairDay) only ever choose
+ * from within it.
+ */
+function selectRotationPool(pool: LibraryRecipe[], target: Macros, count: number, preferredCuisines: string[]): LibraryRecipe[] {
+  const scored = pool.map((recipe) => {
+    const factor = bestFactorForTarget(recipe, target.kcal)
+    const score = dayError(scaledMacros(recipe, factor), target) - cuisineBonus(recipe, preferredCuisines)
+    return { recipe, score }
+  })
+  scored.sort((a, b) => a.score - b.score)
+  return scored.slice(0, Math.max(1, count)).map((s) => s.recipe)
+}
+
+function initialPickForSlot(pool: LibraryRecipe[], target: Macros, usedCounts: Map<number, number>, preferredCuisines: string[]): { recipe: LibraryRecipe; factor: number } | null {
   let best: { recipe: LibraryRecipe; factor: number; score: number } | null = null
 
   for (const recipe of pool) {
     const factor = bestFactorForTarget(recipe, target.kcal)
     const m = scaledMacros(recipe, factor)
-    const score =
-      dayError(m, target) +
-      varietyPenalty(usedCounts.get(recipe.id) || 0, variety) -
-      (preferredCuisines.some((c) => recipe.cuisine.toLowerCase().includes(c.toLowerCase())) ? 20 : 0)
+    const score = dayError(m, target) + repeatPenalty(usedCounts.get(recipe.id) || 0) - cuisineBonus(recipe, preferredCuisines)
 
     if (!best || score < best.score) best = { recipe, factor, score }
   }
@@ -153,7 +172,7 @@ function initialPickForSlot(pool: LibraryRecipe[], target: Macros, usedCounts: M
  * slot's static sub-target — and stops as soon as a pass finds no
  * improving swap (a local optimum, not a fixed iteration count).
  */
-function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCounts: Map<number, number>, variety: string, preferredCuisines: string[]): Pick[] {
+function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCounts: Map<number, number>, preferredCuisines: string[]): Pick[] {
   const current = [...picks]
 
   for (let iter = 0; iter < MAX_REPAIR_ITERATIONS; iter++) {
@@ -162,7 +181,7 @@ function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCount
 
     for (let i = 0; i < current.length; i++) {
       const slot = current[i].slot
-      const pool = pools[slot.key]
+      const pool = pools[slot.key] // already capped to the slot's rotation pool — a repair swap can only pick among those same N recipes, never outside the rotation cap
       const slotShareTarget: Macros = { kcal: target.kcal * slot.share, protein: target.protein * slot.share, carbs: target.carbs * slot.share, fat: target.fat * slot.share }
 
       for (const recipe of pool) {
@@ -172,8 +191,8 @@ function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCount
         const alreadyThisSlot = recipe.id === current[i].recipe.id
         const error =
           dayError(candidateTotals, target) +
-          varietyPenalty(alreadyThisSlot ? Math.max(0, usedCount - 1) : usedCount, variety) * 0.3 -
-          (preferredCuisines.some((c) => recipe.cuisine.toLowerCase().includes(c.toLowerCase())) ? 6 : 0)
+          repeatPenalty(alreadyThisSlot ? Math.max(0, usedCount - 1) : usedCount) * 0.3 -
+          cuisineBonus(recipe, preferredCuisines) * 0.3
 
         if (error < currentError - 0.01 && (!bestSwap || error < bestSwap.error)) {
           bestSwap = { index: i, recipe, factor, error }
@@ -194,10 +213,15 @@ function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCount
 
 /**
  * Assembles a full 7-day plan entirely from the shared recipe library — no
- * AI call. For each day: an initial per-slot pick against proportional
- * macro sub-targets, a local-search repair pass that swaps toward a better
- * day-level macro fit (see repairDay), then one bounded final kcal-only
- * correction so the day's kcal total lands almost exactly on target.
+ * AI call. Meal prep is repetitive by design, so before assembling any
+ * days, each slot's usable pool is first capped down to `profile.variety`
+ * distinct recipes (selectRotationPool) — "1" means the same meal every
+ * day, "2"/"3" means rotating between that many, never more. Then for each
+ * day: an initial per-slot pick from within that capped pool against
+ * proportional macro sub-targets, a local-search repair pass that swaps
+ * toward a better day-level macro fit (see repairDay, still constrained to
+ * the same capped pool), then one bounded final kcal-only correction so
+ * the day's kcal total lands almost exactly on target.
  */
 export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools: LibraryPools): DayPlan[] {
   // A true content gap (library not seeded, or a fetch that "succeeded"
@@ -226,6 +250,14 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
     snack: filtered.snack.length ? filtered.snack : pools.snack,
   }
 
+  const rotationCount = Math.max(1, Math.min(3, parseInt(profile.variety, 10) || 2))
+  const rotationPools: LibraryPools = {
+    breakfast: selectRotationPool(effectivePools.breakfast, { kcal: macros.kcal * SLOTS[0].share, protein: macros.protein * SLOTS[0].share, carbs: macros.carbs * SLOTS[0].share, fat: macros.fat * SLOTS[0].share }, rotationCount, profile.cuisines),
+    lunch: selectRotationPool(effectivePools.lunch, { kcal: macros.kcal * SLOTS[1].share, protein: macros.protein * SLOTS[1].share, carbs: macros.carbs * SLOTS[1].share, fat: macros.fat * SLOTS[1].share }, rotationCount, profile.cuisines),
+    snack: selectRotationPool(effectivePools.snack, { kcal: macros.kcal * SLOTS[2].share, protein: macros.protein * SLOTS[2].share, carbs: macros.carbs * SLOTS[2].share, fat: macros.fat * SLOTS[2].share }, rotationCount, profile.cuisines),
+    dinner: selectRotationPool(effectivePools.dinner, { kcal: macros.kcal * SLOTS[3].share, protein: macros.protein * SLOTS[3].share, carbs: macros.carbs * SLOTS[3].share, fat: macros.fat * SLOTS[3].share }, rotationCount, profile.cuisines),
+  }
+
   const usedCounts = new Map<number, number>()
   const days: DayPlan[] = []
 
@@ -234,13 +266,13 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
 
     for (const slot of SLOTS) {
       const target: Macros = { kcal: macros.kcal * slot.share, protein: macros.protein * slot.share, carbs: macros.carbs * slot.share, fat: macros.fat * slot.share }
-      const picked = initialPickForSlot(effectivePools[slot.key], target, usedCounts, profile.variety, profile.cuisines)
+      const picked = initialPickForSlot(rotationPools[slot.key], target, usedCounts, profile.cuisines)
       if (!picked) continue
       picks.push({ slot, recipe: picked.recipe, factor: picked.factor })
       usedCounts.set(picked.recipe.id, (usedCounts.get(picked.recipe.id) || 0) + 1)
     }
 
-    picks = repairDay(picks, macros, effectivePools, usedCounts, profile.variety, profile.cuisines)
+    picks = repairDay(picks, macros, rotationPools, usedCounts, profile.cuisines)
 
     const actualKcal = sumMacros(picks).kcal
     const correction = actualKcal > 0 ? Math.min(1.15, Math.max(0.85, macros.kcal / actualKcal)) : 1
@@ -271,6 +303,13 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
 
 /** Fetches the full library, one category at a time — unlike libraryGrounding.ts's old compact sample, assemblePlanFromLibrary needs the whole pool to actually pick from, not just a naming hint. */
 export async function getLibraryPools(): Promise<LibraryPools> {
+  // Dynamic import, not a top-level one — client.ts pulls in RN/AsyncStorage
+  // transitively, which would make this whole module fail to load outside
+  // a bundler (e.g. a plain tsx script testing assemblePlanFromLibrary in
+  // isolation, as used throughout this feature's development). Keeps the
+  // pure algorithm above genuinely free of RN dependencies at module-load
+  // time; only this fetch wrapper needs them, and only once actually called.
+  const { getRecipeLibrary } = await import('./client')
   const [breakfast, lunch, dinner, snack] = await Promise.all([
     getRecipeLibrary({ category: 'breakfast' }),
     getRecipeLibrary({ category: 'lunch' }),

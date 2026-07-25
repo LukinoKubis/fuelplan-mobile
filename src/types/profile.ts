@@ -44,7 +44,7 @@ export const EMPTY_PROFILE: Profile = {
   trainingStyle: '',
   cookingSkill: '',
   prepTime: '',
-  variety: 'some variety',
+  variety: '2', // "Switch between 2" — see survey/options.ts's VARIETY_OPTIONS
   cuisines: [],
 
   goalOffset: 0,

@@ -42,10 +42,14 @@ export const CUISINE_OPTIONS: ChipOption[] = [
   { value: 'no preference', label: 'No preference' },
 ]
 
+// Meal prep is repetitive by design — most people rotate between at most
+// 2-3 meals per slot, not a different meal every day. Values are the
+// literal rotation cap planAssembly.ts's selectRotationPool() uses to size
+// each slot's pool for the week, not an abstract "how varied" label.
 export const VARIETY_OPTIONS = [
-  { value: 'repeat', title: 'Repeat meals', desc: 'Same 2–3 meals all week. Easiest for prep.' },
-  { value: 'some variety', title: 'Some variety', desc: 'Mix of repeated and new meals. Recommended.' },
-  { value: 'fully diverse', title: 'Fully diverse', desc: 'Different meal every day. Maximum variety.' },
+  { value: '1', title: 'Same every day', desc: 'One meal per slot, all week. Simplest — the whole point of meal prep.' },
+  { value: '2', title: 'Switch between 2', desc: 'Rotate 2 meals per slot across the week. Recommended.' },
+  { value: '3', title: 'Switch between 3', desc: 'Rotate 3 meals per slot — about as much variety as makes sense for prep.' },
 ]
 
 export const ACTIVITY_OPTIONS = [
