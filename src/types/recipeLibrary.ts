@@ -14,6 +14,7 @@ export interface LibraryRecipe {
   servings: number
   category: 'breakfast' | 'lunch' | 'dinner' | 'snack'
   cuisine: string
+  difficulty: 'beginner' | 'intermediate' | 'advanced'
   tags: string[]
   createdAt: string
   /** Only ever present on a list response — computed per request against the calling user's favorites. */

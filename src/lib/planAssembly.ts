@@ -127,6 +127,16 @@ function cuisineBonus(recipe: LibraryRecipe, preferredCuisines: string[]): numbe
   return preferredCuisines.some((c) => recipe.cuisine.toLowerCase().includes(c.toLowerCase())) ? 20 : 0
 }
 
+const DIFFICULTY_ORDER = ['beginner', 'intermediate', 'advanced']
+
+/** A recipe matching the user's stated cooking skill gets a small bonus; one that's two tiers off (e.g. a beginner cook, an advanced recipe) gets a penalty. One tier off either direction is fine — no bonus, no penalty. */
+function difficultyBonus(recipe: LibraryRecipe, cookingSkill: string): number {
+  if (!cookingSkill) return 0
+  if (recipe.difficulty === cookingSkill) return 15
+  const gap = Math.abs(DIFFICULTY_ORDER.indexOf(recipe.difficulty) - DIFFICULTY_ORDER.indexOf(cookingSkill))
+  return gap >= 2 ? -20 : 0
+}
+
 /**
  * Picks the top `count` distinct recipes for a slot against its macro
  * sub-target — this is what actually enforces "switch between at most N
@@ -137,10 +147,10 @@ function cuisineBonus(recipe: LibraryRecipe, preferredCuisines: string[]): numbe
  * per-day picks below (initialPickForSlot/repairDay) only ever choose
  * from within it.
  */
-function selectRotationPool(pool: LibraryRecipe[], target: Macros, count: number, preferredCuisines: string[]): LibraryRecipe[] {
+function selectRotationPool(pool: LibraryRecipe[], target: Macros, count: number, preferredCuisines: string[], cookingSkill: string): LibraryRecipe[] {
   const scored = pool.map((recipe) => {
     const factor = bestFactorForTarget(recipe, target.kcal)
-    const score = dayError(scaledMacros(recipe, factor), target) - cuisineBonus(recipe, preferredCuisines)
+    const score = dayError(scaledMacros(recipe, factor), target) - cuisineBonus(recipe, preferredCuisines) - difficultyBonus(recipe, cookingSkill)
     return { recipe, score }
   })
   scored.sort((a, b) => a.score - b.score)
@@ -251,11 +261,10 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
   }
 
   const rotationCount = Math.max(1, Math.min(3, parseInt(profile.variety, 10) || 2))
-  const rotationPools: LibraryPools = {
-    breakfast: selectRotationPool(effectivePools.breakfast, { kcal: macros.kcal * SLOTS[0].share, protein: macros.protein * SLOTS[0].share, carbs: macros.carbs * SLOTS[0].share, fat: macros.fat * SLOTS[0].share }, rotationCount, profile.cuisines),
-    lunch: selectRotationPool(effectivePools.lunch, { kcal: macros.kcal * SLOTS[1].share, protein: macros.protein * SLOTS[1].share, carbs: macros.carbs * SLOTS[1].share, fat: macros.fat * SLOTS[1].share }, rotationCount, profile.cuisines),
-    snack: selectRotationPool(effectivePools.snack, { kcal: macros.kcal * SLOTS[2].share, protein: macros.protein * SLOTS[2].share, carbs: macros.carbs * SLOTS[2].share, fat: macros.fat * SLOTS[2].share }, rotationCount, profile.cuisines),
-    dinner: selectRotationPool(effectivePools.dinner, { kcal: macros.kcal * SLOTS[3].share, protein: macros.protein * SLOTS[3].share, carbs: macros.carbs * SLOTS[3].share, fat: macros.fat * SLOTS[3].share }, rotationCount, profile.cuisines),
+  const rotationPools: LibraryPools = {} as LibraryPools
+  for (const slot of SLOTS) {
+    const target: Macros = { kcal: macros.kcal * slot.share, protein: macros.protein * slot.share, carbs: macros.carbs * slot.share, fat: macros.fat * slot.share }
+    rotationPools[slot.key] = selectRotationPool(effectivePools[slot.key], target, rotationCount, profile.cuisines, profile.cookingSkill)
   }
 
   const usedCounts = new Map<number, number>()

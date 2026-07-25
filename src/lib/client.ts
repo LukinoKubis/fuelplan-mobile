@@ -202,7 +202,7 @@ export async function deleteRecipe(recipeId: number): Promise<{ ok: boolean; rem
 }
 
 /** Lists/searches the shared recipe library — every user reads the same admin-seeded catalog, filtered server-side. */
-export async function getRecipeLibrary(params?: { category?: string; search?: string; favoritesOnly?: boolean }): Promise<{ recipes: LibraryRecipe[] }> {
+export async function getRecipeLibrary(params?: { category?: string; search?: string; favoritesOnly?: boolean; difficulty?: string }): Promise<{ recipes: LibraryRecipe[] }> {
   const response = await fetch(`${API_BASE}/api/library/list`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },

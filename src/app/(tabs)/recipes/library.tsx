@@ -7,6 +7,7 @@ import { getRecipeLibrary, toggleLibraryFavorite } from '../../../lib/client'
 import { useThemeColors } from '../../../lib/themeColors'
 import { perServingMacros } from '../../../lib/recipeMacros'
 import { PillGroup } from '../../../components/survey/Chips'
+import { DifficultyBadge } from '../../../components/shared/DifficultyBadge'
 import type { LibraryRecipe } from '../../../types/recipeLibrary'
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -22,6 +23,13 @@ const CATEGORIES = [
   { value: 'lunch', label: 'Lunch' },
   { value: 'dinner', label: 'Dinner' },
   { value: 'snack', label: 'Snack' },
+]
+
+const DIFFICULTIES = [
+  { value: '', label: 'Any difficulty' },
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
 ]
 
 /** Small colored macro readout — same kcal=lime/protein=blue/carbs=orange/fat=red convention as DayMacroBar, so a library card reads consistently with the rest of the app. */
@@ -57,6 +65,7 @@ export default function RecipeLibraryScreen() {
   const c = useThemeColors()
   const router = useRouter()
   const [category, setCategory] = useState('')
+  const [difficulty, setDifficulty] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -73,7 +82,7 @@ export default function RecipeLibraryScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false
-      getRecipeLibrary({ category: category || undefined, search: debouncedSearch || undefined, favoritesOnly: favoritesOnly || undefined })
+      getRecipeLibrary({ category: category || undefined, search: debouncedSearch || undefined, favoritesOnly: favoritesOnly || undefined, difficulty: difficulty || undefined })
         .then((res) => {
           if (!cancelled) setRecipes(res.recipes)
         })
@@ -83,7 +92,7 @@ export default function RecipeLibraryScreen() {
       return () => {
         cancelled = true
       }
-    }, [category, debouncedSearch, favoritesOnly])
+    }, [category, debouncedSearch, favoritesOnly, difficulty])
   )
 
   /** Optimistic toggle — flips the heart immediately, reverts if the save fails. */
@@ -113,6 +122,9 @@ export default function RecipeLibraryScreen() {
 
         <View className="mb-2">
           <PillGroup options={CATEGORIES} value={category} onChange={setCategory} />
+        </View>
+        <View className="mb-2">
+          <PillGroup options={DIFFICULTIES} value={difficulty} onChange={setDifficulty} />
         </View>
         <Pressable
           onPress={() => setFavoritesOnly((v) => !v)}
@@ -154,9 +166,12 @@ export default function RecipeLibraryScreen() {
                   </View>
                   <HeartButton favorited={!!recipe.favorited} onPress={() => handleToggleFavorite(recipe)} />
                 </View>
-                <Text className="px-3.5 pb-3 text-xs" style={{ color: c.muted }}>
-                  {recipe.cuisine} · {recipe.category}{recipe.servings > 1 ? ` · serves ${recipe.servings}` : ''}
-                </Text>
+                <View className="flex-row flex-wrap items-center gap-1.5 px-3.5 pb-3">
+                  <Text className="text-xs" style={{ color: c.muted }}>
+                    {recipe.cuisine} · {recipe.category}{recipe.servings > 1 ? ` · serves ${recipe.servings}` : ''}
+                  </Text>
+                  <DifficultyBadge difficulty={recipe.difficulty} />
+                </View>
 
                 <View className="mx-3.5 flex-row gap-1.5">
                   <MacroChip value={per.kcal} label="kcal" color={c.lime} c={c} />

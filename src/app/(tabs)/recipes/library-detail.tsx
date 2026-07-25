@@ -8,6 +8,7 @@ import { addLibraryRecipeToMine, toggleLibraryFavorite } from '../../../lib/clie
 import { perServingMacros } from '../../../lib/recipeMacros'
 import { usePlan } from '../../../state/PlanContext'
 import { PillGroup } from '../../../components/survey/Chips'
+import { DifficultyBadge } from '../../../components/shared/DifficultyBadge'
 import type { LibraryRecipe } from '../../../types/recipeLibrary'
 
 const TIME_SLOTS = [
@@ -110,7 +111,10 @@ export default function LibraryRecipeDetailScreen() {
           </Svg>
         </Pressable>
       </View>
-      <Text className="mb-4 text-xs" style={{ color: c.muted }}>{recipe.cuisine} · {recipe.category}</Text>
+      <View className="mb-4 flex-row flex-wrap items-center gap-1.5">
+        <Text className="text-xs" style={{ color: c.muted }}>{recipe.cuisine} · {recipe.category}</Text>
+        <DifficultyBadge difficulty={recipe.difficulty} />
+      </View>
 
       <View className="mb-2 flex-row flex-wrap gap-1.5">
         {recipe.tags.map((tag) => (
