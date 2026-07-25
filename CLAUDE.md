@@ -647,25 +647,58 @@ Feedback, (narrowed) Data, Account (Log Out / Full Reset / Delete Account
 — the last two danger-styled, two-tap confirm matching the existing
 Full Reset pattern), Legal.
 
-**Fuel tab's "My Plans"/"New Plan" buttons redesigned** — were flat text
-links that read as low-priority chrome. Now: "New Plan" is a filled-lime
-pill with a `+` icon (the primary action), "My Plans" a bordered pill with
-a clock icon (secondary), remaining-credits text moved into its own small
-badge instead of sitting inline between them.
+**Survey skips the "what's your name" step once it's already known** —
+`profile.name` persists across plans (never reset between generations), so
+re-asking it on every single regenerate read as nagging. `SurveyFlow.tsx`
+now initializes `step` to `1` instead of `0` when `profile.name` is
+already set (read once on mount via a lazy `useState` initializer, not
+live — doesn't jump mid-survey if the user clears the field themselves).
+Still reachable via Back from step 1 as an escape hatch if they want to
+change it.
 
-**Manual plan building**: `SurveyFlow.tsx`'s `handleBuildManually()` skips
-both the algorithm and the AI — constructs a blank `Plan` (all 7 days,
-zero meals, `summary` set from the same `resolveProfileMacros()` validation
-`handleGenerate()` uses) and routes through the same `/modal/plan-name`
-flow. Free, no generation credit spent. Reachable via a secondary "Or
-build it myself, meal by meal →" link below Step 3's macro form. Any day
-with zero meals now shows a friendly empty state in `fuel/index.tsx`
-("Browse Recipe Library →") instead of nothing — reuses the *existing*
-library "Add to Plan" flow unchanged, just adds an optional `presetDay`
-route param (`library.tsx` → `library-detail.tsx`) that preselects the day
-and auto-opens the Add-to-Plan panel so the user isn't re-picking a day
-they already navigated from. A "+ Add another meal to {day}" affordance
-appears once a day has at least one meal, for the same flow.
+**Fuel tab's "My Plans"/"New Plan" buttons redesigned, then split into two**
+(see "Two plan-creation paths" below for the second change) — were flat
+text links that read as low-priority chrome, then a single lime "New Plan"
+pill, now two pills side by side: "Generate" (lime) and "Custom"
+(bordered). "My Plans" stayed a bordered pill with a clock icon on its own
+row below, remaining-credits text in its own small badge.
+
+**Two plan-creation paths: Generate (survey) vs Custom (self-picked
+wizard).** `NewPlanChooser.tsx` is the first-time (no plan yet) landing
+screen — two big buttons. Existing users skip that chooser entirely and
+pick directly via the Fuel tab header's two pills (`fuel/index.tsx` sets
+both `surveyMode` and a local `flowMode: 'survey' | 'custom'` together).
+`onCancel`/Back from either flow always resets `flowMode` to `null`, which
+correctly lands back on the chooser for a first-time user (`!plan` still
+true) or the normal Fuel view for an existing one (`showSurvey` goes
+false) — same handler, different outcome depending on whether a plan
+already exists.
+
+`CustomPlanFlow.tsx` (self-picked path) is its own small wizard, not just
+a blank-plan shortcut: **step 0** is macro targets (`Step3Macros` reused
+standalone via a new `hideStepLabel` prop, since it's not part of a
+numbered 4-step survey here). **Steps 1-4** are one per meal slot —
+breakfast, lunch, snack, dinner, in that order, matching how people
+actually plan a week ("what am I doing for breakfast" as one decision, not
+per day) rather than day-by-day. Each step lists that category's library
+recipes (`getRecipeLibrary({ category })`, debounced search) as a tappable
+multi-select; picking more than one for a slot rotates them round-robin
+across the 7 days (`day[i] = picks[i % picks.length]`), picking none skips
+that slot everywhere. **Shows a live running macro estimate** while
+picking — `averageMacros()` over each slot's current selections, summed
+across slots, rendered through the existing `DayMacroBar` component (same
+one Fuel tab uses) against the target set in step 0, so the user can see
+what's still missing or already overshot *before* finishing, not just
+after. On the final step, builds the real `days`/`meals` arrays from the
+selections, then — if at least one meal was actually picked — runs the
+*same* `buildPrepAndShoppingRequest()` AI call `SurveyFlow`'s Generate
+path uses, so Prep/Haul get real content instead of staying empty just
+because the meals were user-picked rather than algorithm-picked. That call
+costs one generation credit, same as Generate (skipped entirely, no
+credit spent, if the user picks zero meals in every slot). Any day still
+missing a slot afterward falls back to the existing empty/add-more-meal
+CTAs in `fuel/index.tsx` (`presetDay` route param into the library) —
+this wizard is a fast bulk-fill, not the only way to add a meal.
 
 **One-shot "Get AI Advice"** (per day, from the Fuel tab): deliberately
 bounded — one short (2-4 sentence) targeted suggestion, never an
