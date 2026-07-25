@@ -94,6 +94,25 @@ export async function postClaudeSuggest(body: GenerateRequest, signal?: AbortSig
   return response.json()
 }
 
+/**
+ * Prep+shopping generation for a user-picked (Custom) plan — same request
+ * shape as postClaude but hits /api/claude/prep-and-shopping, which does
+ * NOT deduct a generation credit (rate-limited instead — free "for now" per
+ * an explicit product call pending the monetization rework). Distinct from
+ * postClaudeSuggest: that endpoint's 1200-token cap is too small for a full
+ * week's prep_tasks/shopping_list JSON (routinely ~6000 tokens).
+ */
+export async function postClaudePrepAndShopping(body: GenerateRequest, signal?: AbortSignal): Promise<ClaudeResponse> {
+  const response = await fetch(`${API_BASE}/api/claude/prep-and-shopping`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    signal,
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
 /** Fetches the signed-in user's remaining AI-generation credits. */
 export async function fetchUsage(): Promise<{ remaining: number }> {
   const response = await fetch(`${API_BASE}/api/usage`, {

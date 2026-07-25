@@ -95,7 +95,6 @@ export default function FuelScreen() {
               setActiveDay(0)
               router.push('/modal/plan-name')
             }}
-            onBuyPlans={handleBuyPlans}
             canCancel
             onCancel={() => { setSurveyMode(false); setFlowMode(null) }}
           />

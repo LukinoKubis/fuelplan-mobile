@@ -8,11 +8,10 @@ import { DayMacroBar } from '../fuel/DayMacroBar'
 import { LoadingOverlay } from '../shared/LoadingOverlay'
 import { ErrorPanel } from '../shared/ErrorPanel'
 import { usePlan } from '../../state/PlanContext'
-import { useAccount } from '../../state/AccountContext'
 import { resolveProfileMacros } from '../../lib/macros'
 import { WEEK_DAYS } from '../../lib/planAssembly'
 import { buildPrepAndShoppingRequest } from '../../lib/prepAndShoppingPrompt'
-import { ApiError, getRecipeLibrary, postClaude } from '../../lib/client'
+import { ApiError, getRecipeLibrary, postClaudePrepAndShopping } from '../../lib/client'
 import { perServingMacros } from '../../lib/recipeMacros'
 import { useThemeColors } from '../../lib/themeColors'
 import { friendlyErrorMessage } from '../../lib/errorMessage'
@@ -39,7 +38,6 @@ function averageMacros(recipes: LibraryRecipe[]): Macros {
 
 interface CustomPlanFlowProps {
   onCreated: () => void
-  onBuyPlans: () => void
   canCancel: boolean
   onCancel: () => void
 }
@@ -65,20 +63,21 @@ const SLOTS: { key: SlotKey; label: string; time: string }[] = [
  * skips that slot everywhere — the Fuel tab's existing per-day "Add a
  * meal"/replace flows still cover anything left blank or wanted later.
  *
- * Once meals are picked, this makes the exact same small AI call
- * SurveyFlow's Generate path does (buildPrepAndShoppingRequest) to turn the
- * already-decided week into Sunday batch-cook steps + a shopping list — so
- * Prep/Haul aren't empty just because the meals came from the user instead
- * of the algorithm. That call still costs one generation credit, same as
- * Generate (the credit pays for that AI call, not for picking meals).
+ * Once meals are picked, this makes the same buildPrepAndShoppingRequest()
+ * call SurveyFlow's Generate path does, to turn the already-decided week
+ * into Sunday batch-cook steps + a shopping list — so Prep/Haul aren't
+ * empty just because the meals came from the user instead of the
+ * algorithm. Unlike Generate, this call is free (routed through
+ * /api/claude/prep-and-shopping, not /api/claude) — an explicit product
+ * call to keep Custom Plan at $0 for now, ahead of the planned freemium
+ * monetization rework; revisit if/when that lands.
  */
-export function CustomPlanFlow({ onCreated, onBuyPlans, canCancel, onCancel }: CustomPlanFlowProps) {
+export function CustomPlanFlow({ onCreated, canCancel, onCancel }: CustomPlanFlowProps) {
   const c = useThemeColors()
   const { profile, setProfile, setPlan } = usePlan()
-  const { refreshRemaining } = useAccount()
   const [step, setStep] = useState(0) // 0 = macros, 1..4 = SLOTS[step-1]
   const [error, setError] = useState('')
-  const [genError, setGenError] = useState<{ message: string; isOutOfPlans: boolean } | null>(null)
+  const [genError, setGenError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -168,8 +167,7 @@ export function CustomPlanFlow({ onCreated, onBuyPlans, canCancel, onCancel }: C
 
     const hasAnyMeals = days.some((d) => d.meals.length > 0)
     if (!hasAnyMeals) {
-      // Nothing picked at all — skip the AI call entirely, no point paying
-      // a credit for prep/shopping steps covering zero meals.
+      // Nothing picked at all — skip the AI call entirely, nothing for it to describe.
       const plan: Plan = { summary: macros, prep_tasks: [], days, shopping_list: [] }
       setPlan(plan, profile.name.trim() || 'Your')
       onCreated()
@@ -182,7 +180,7 @@ export function CustomPlanFlow({ onCreated, onBuyPlans, canCancel, onCancel }: C
 
     try {
       const { system, messages, model, max_tokens } = buildPrepAndShoppingRequest(days)
-      const response = await postClaude({ model, max_tokens, system, messages }, abortRef.current.signal)
+      const response = await postClaudePrepAndShopping({ model, max_tokens, system, messages }, abortRef.current.signal)
       const rawText = response.content[0]?.text || ''
       const cleaned = rawText
         .replace(/^```json\s*/i, '')
@@ -202,16 +200,11 @@ export function CustomPlanFlow({ onCreated, onBuyPlans, canCancel, onCancel }: C
       const plan: Plan = { summary: macros, prep_tasks: extra.prep_tasks || [], days, shopping_list: extra.shopping_list || [] }
       setPlan(plan, profile.name.trim() || 'Your')
       setLoading(false)
-      refreshRemaining()
       onCreated()
     } catch (err) {
       setLoading(false)
       if (err instanceof DOMException && err.name === 'AbortError') return
-      if (err instanceof ApiError) {
-        setGenError({ message: err.message, isOutOfPlans: err.status === 402 })
-      } else {
-        setGenError({ message: friendlyErrorMessage(err), isOutOfPlans: false })
-      }
+      setGenError(err instanceof ApiError ? err.message : friendlyErrorMessage(err))
     }
   }
 
@@ -344,14 +337,12 @@ export function CustomPlanFlow({ onCreated, onBuyPlans, canCancel, onCancel }: C
       {loading && <LoadingOverlay onCancel={handleCancelLoading} />}
       {genError && (
         <ErrorPanel
-          message={genError.message}
-          isOutOfPlans={genError.isOutOfPlans}
+          message={genError}
           onRetry={() => {
             setGenError(null)
             handleCreate()
           }}
           onDismiss={() => setGenError(null)}
-          onTopUp={onBuyPlans}
         />
       )}
     </SafeAreaView>
