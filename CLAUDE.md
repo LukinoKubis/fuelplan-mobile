@@ -403,9 +403,23 @@ Chromium needs real system libraries not present by default):
   apply to native, fails soft to manual paste). `extractVideoText()`
   (`client.ts`) additionally reads spoken-audio transcript + on-screen
   text overlays the caption alone doesn't cover, in parallel with the
-  oEmbed fetch, appending whatever it finds rather than waiting for or
-  overwriting the field. Genuinely slower (10-20s) and can fail — always
+  oEmbed fetch. Genuinely slower (10-20s) and can fail — always
   best-effort, never blocks pasting/editing manually.
+  **The transcript/on-screen text are never shown in the visible text
+  field** (`recipe-import.tsx`'s `videoContext` state, separate from
+  `rawText`) — only fed silently into the AI extraction call. A video's
+  spoken audio is often just background music lyrics or unrelated
+  chatter, and showing that raw next to the actual caption looked broken.
+  If both the caption and the video read come back genuinely empty (some
+  videos are pure B-roll with no readable text anywhere), an inline
+  orange banner tells the user rather than leaving a silently empty
+  field. **Real bug hit and fixed**: this was originally `Alert.alert`,
+  which is a total no-op on web (`react-native-web`'s implementation is
+  literally `static alert() {}`) — silently did nothing on the real web
+  deploy at app.fuelplan.fit. Swapped to the same inline-message pattern
+  the screen already uses for its `error` state. If a future feature
+  needs a blocking-style native notice, don't reach for `Alert.alert`
+  without checking it actually renders on web first.
 - **Instagram**: `extractInstagramCaption()` reads the post page's
   `og:description` meta tag (confirmed live — Instagram's oEmbed/API
   don't expose captions without Meta App Review, but this does). Faster
