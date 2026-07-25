@@ -436,6 +436,16 @@ recipes without one yet — saves immediately via the existing
 upsert-by-id call). Stored as a base64 data URI directly on `Recipe.photo`
 — purely cosmetic, unrelated to extraction.
 
+**Tags/labels**: `Recipe.tags?: string[]` — free-form, user-created, added/
+removed as pill chips on the detail screen (`recipes/[id].tsx`), each
+change saved immediately via the same upsert-by-id `saveRecipe()` call
+everything else there uses (dedup is case-insensitive client-side). No
+separate folder concept — the personal recipes list (`recipes/index.tsx`)
+derives its filter pills from the union of every loaded recipe's tags and
+filters client-side, since the full list is already in memory. Backend
+`RecipeRecord.tags` (`claude-backend/src/server.ts`) is a plain passthrough
+field on `/api/recipes/save`, same shape.
+
 ## Shared recipe library (Library M1-M5 all done — plan generation is now fully library-driven, no AI invents meals anymore)
 A separate, admin-seeded catalog every user reads the same copy of —
 distinct from the personal recipe box above. `recipes/library.tsx`
@@ -571,6 +581,103 @@ the new algorithmic selection — `planAssembly.ts`'s scoring has no
 favorites input. Not wired up yet; worth a follow-up if it turns out to
 matter to users now that it's silently inert rather than removed. Tracked
 as issue #26.
+
+**Real bug hit and fixed post-launch: protein scoring was symmetric,
+causing systematic undershoot.** `dayError()`'s macro-fit scoring penalized
+protein overshoot and undershoot equally (`Math.abs(diff) * 3`), but real
+recipes are far more constrained on the "too little" side — plenty of
+recipes clear a high protein floor by a lot, almost none fall exactly on
+it, so a symmetric penalty made the optimizer settle for meals well under
+target rather than risk scoring a small overshoot. Diagnosed with a
+standalone script comparing actual output against the *theoretical max*
+protein achievable from the same library (168g actual vs 220g target,
+258g theoretical max — confirming the bug was in scoring, not just content
+scarcity). Fixed with an asymmetric `proteinError()`: overshoot penalized
+at 2.5x, undershoot at 4x (note: heavier on undershoot, the direction
+that's actually bad) — landed after two rounds of live retuning (0.4x/1.2x
+were both undertuned once the library gained more high-protein recipes
+from the seeding work below). kcal/carbs/fat stay symmetric — unlike
+protein, they have a real "too much" side. Verified end-to-end via the
+real survey→generation→Fuel-tab flow: 168g → 239g protein at a 220g
+target, zero undershoot across several live macro-target scenarios.
+
+**Targeted library seeding + "Gym Bro" cuisine**: `/api/admin/seed-library`
+(`claude-backend`) now accepts optional `style`/`cuisine`/
+`minProteinDensity` body params, each injecting an extra system-prompt
+rule line into `SEED_JSON_TEMPLATE` — lets a seeding run target a specific
+gap (e.g. "more high-protein basics") instead of only ever asking for
+generic variety. Used to seed ~70 new recipes: plain high-protein staples
+(chicken + rice, etc. — the "food people actually eat every day" gap) and
+a dedicated "Gym Bro" cuisine (`{ value: 'Gym Bro', label: 'Gym Bro 💪' }`
+in `survey/options.ts`'s `CUISINE_OPTIONS` — the label string must match
+the seeded library `cuisine` field exactly for `planAssembly.ts`'s
+`cuisineBonus()` to match it). This was the other half of the protein fix
+above, not a separate unrelated feature — raising the library's available
+protein-density ceiling is what made the second scoring retune necessary.
+
+**Meal replace** (`PlanContext`'s `REPLACE_MEAL` action): browse-and-pick,
+not auto-reroll — matches the user's explicit choice over an "auto swap"
+alternative. `MealCard` grew a swap-icon `Pressable` that navigates to
+`recipes/library` with `replaceDay`/`replaceMealIndex`/`replaceMealName`
+params, threaded through to `library-detail.tsx`, which shows a blue
+"Replace This Meal" section instead of the normal orange "Add to Plan"
+one when those params are present. `replaceMeal()` replaces **in place at
+the same array index** (not append) — deliberately mirrors the
+`ADD_MEAL_TO_DAY`-must-append rule above, since `fuel/index.tsx` also keys
+`eaten` state off meal array index; replacing in place preserves it,
+inserting/removing would desync every later meal's eaten flag. Preserves
+the original meal's `time` slot rather than resetting it.
+
+**Settings screen reorganized + real gaps closed.** Was previously missing
+two things a shipping app needs: **self-serve account deletion**
+(`POST /api/account/delete`, `requireAuth` — Apple has required this for
+any app with account creation since 2022, not just a nice-to-have; deletes
+every per-user Redis key, not just the user record — remaining credits,
+history, archive, tracking, push tokens, admin notes, recipes, favorites —
+but deliberately keeps order/payment records, matching the privacy
+policy's stated retention practice) and a **feedback/suggestions channel**
+(`POST /api/feedback/submit`, rate-limited 5/hour, stores to
+`fuelplan:feedback:all` capped at `MAX_FEEDBACK = 500`, best-effort emails
+`FEEDBACK_NOTIFY_EMAIL` via Resend — `modal/feedback.tsx` on the mobile
+side, reachable from a new "Feedback" section in Settings). Also: the
+**privacy policy was built in an earlier session but never linked
+anywhere in-app**, only reachable via direct URL — added under a new
+"Legal" section, opens via `expo-web-browser`. Settings' sections are now:
+Feedback, (narrowed) Data, Account (Log Out / Full Reset / Delete Account
+— the last two danger-styled, two-tap confirm matching the existing
+Full Reset pattern), Legal.
+
+**Fuel tab's "My Plans"/"New Plan" buttons redesigned** — were flat text
+links that read as low-priority chrome. Now: "New Plan" is a filled-lime
+pill with a `+` icon (the primary action), "My Plans" a bordered pill with
+a clock icon (secondary), remaining-credits text moved into its own small
+badge instead of sitting inline between them.
+
+**Manual plan building**: `SurveyFlow.tsx`'s `handleBuildManually()` skips
+both the algorithm and the AI — constructs a blank `Plan` (all 7 days,
+zero meals, `summary` set from the same `resolveProfileMacros()` validation
+`handleGenerate()` uses) and routes through the same `/modal/plan-name`
+flow. Free, no generation credit spent. Reachable via a secondary "Or
+build it myself, meal by meal →" link below Step 3's macro form. Any day
+with zero meals now shows a friendly empty state in `fuel/index.tsx`
+("Browse Recipe Library →") instead of nothing — reuses the *existing*
+library "Add to Plan" flow unchanged, just adds an optional `presetDay`
+route param (`library.tsx` → `library-detail.tsx`) that preselects the day
+and auto-opens the Add-to-Plan panel so the user isn't re-picking a day
+they already navigated from. A "+ Add another meal to {day}" affordance
+appears once a day has at least one meal, for the same flow.
+
+**One-shot "Get AI Advice"** (per day, from the Fuel tab): deliberately
+bounded — one short (2-4 sentence) targeted suggestion, never an
+open-ended chat, never edits the plan itself (explicit user scope
+decision). Routes through `/api/claude/suggest`
+(`buildDayAdviceRequest()` in `lib/advicePrompt.ts`, `postClaudeSuggest()`
+in `client.ts`) — an endpoint that already existed server-side
+(`claude-backend`'s "Suggestion proxy", 1200-token cap, `requireAuth` but
+**no credit decrement**) but had no caller anywhere in the app until this
+feature; if a future lightweight one-shot AI feature is needed, prefer
+this existing endpoint over adding a new one or routing through
+`/api/claude` (which costs a full generation credit).
 
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
