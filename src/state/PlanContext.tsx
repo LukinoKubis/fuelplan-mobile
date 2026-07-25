@@ -31,6 +31,7 @@ type Action =
   | { type: 'RESET_EATEN' }
   | { type: 'RESET_SHOP_CHECKS' }
   | { type: 'ADD_MEAL_TO_DAY'; day: string; meal: Meal }
+  | { type: 'REPLACE_MEAL'; day: string; mealIndex: number; meal: Meal }
 
 const INITIAL_STATE: PlanState = {
   plan: null,
@@ -99,6 +100,31 @@ function reducer(state: PlanState, action: Action): PlanState {
       })
       return { ...state, plan: { ...state.plan, days } }
     }
+    case 'REPLACE_MEAL': {
+      if (!state.plan) return state
+      // Replaces IN PLACE at the same index (unlike ADD_MEAL_TO_DAY, which
+      // always appends) — the meal being swapped out already has a real
+      // slot/position in the day, and eaten-state is keyed by that index
+      // (see fuel/index.tsx), so we want to keep everything else's index
+      // stable, not shift the array.
+      const days = state.plan.days.map((d) => {
+        if (d.day !== action.day) return d
+        const meals = d.meals.map((m, i) => (i === action.mealIndex ? action.meal : m))
+        return {
+          ...d,
+          meals,
+          kcal: meals.reduce((sum, m) => sum + m.kcal, 0),
+          protein: meals.reduce((sum, m) => sum + m.protein, 0),
+          carbs: meals.reduce((sum, m) => sum + m.carbs, 0),
+          fat: meals.reduce((sum, m) => sum + m.fat, 0),
+        }
+      })
+      // The replaced meal is a different meal now — its old eaten flag
+      // (if any) shouldn't carry over.
+      const eaten = { ...state.eaten }
+      delete eaten[`${action.day}-${action.mealIndex}`]
+      return { ...state, plan: { ...state.plan, days }, eaten }
+    }
     default:
       return state
   }
@@ -122,6 +148,8 @@ interface PlanContextValue extends PlanState {
   resetShopChecks: () => void
   /** Appends a meal to the end of the named day's meals and recomputes that day's totals. Does not touch the Haul tab's shopping list. */
   addMealToDay: (day: string, meal: Meal) => void
+  /** Replaces the meal at a specific index within a day (in place, not appended) and recomputes that day's totals. Clears any eaten-flag on that slot. Does not touch the Haul tab's shopping list. */
+  replaceMeal: (day: string, mealIndex: number, meal: Meal) => void
   /** True while the survey/edit-profile flow should replace the Fuel tab's normal view. */
   surveyMode: boolean
   setSurveyMode: (value: boolean) => void
@@ -209,6 +237,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const resetEaten = useCallback(() => dispatch({ type: 'RESET_EATEN' }), [])
   const resetShopChecks = useCallback(() => dispatch({ type: 'RESET_SHOP_CHECKS' }), [])
   const addMealToDay = useCallback((day: string, meal: Meal) => dispatch({ type: 'ADD_MEAL_TO_DAY', day, meal }), [])
+  const replaceMeal = useCallback((day: string, mealIndex: number, meal: Meal) => dispatch({ type: 'REPLACE_MEAL', day, mealIndex, meal }), [])
 
   return (
     <PlanContext.Provider
@@ -225,6 +254,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         resetEaten,
         resetShopChecks,
         addMealToDay,
+        replaceMeal,
         surveyMode,
         setSurveyMode,
       }}

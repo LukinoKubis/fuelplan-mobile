@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { Text } from '@/components/Text'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Path } from 'react-native-svg'
 import { getRecipeLibrary, toggleLibraryFavorite } from '../../../lib/client'
 import { useThemeColors } from '../../../lib/themeColors'
@@ -64,6 +64,8 @@ function HeartButton({ favorited, onPress }: { favorited: boolean; onPress: () =
 export default function RecipeLibraryScreen() {
   const c = useThemeColors()
   const router = useRouter()
+  const params = useLocalSearchParams<{ replaceDay?: string; replaceMealIndex?: string; replaceMealName?: string }>()
+  const isReplaceMode = !!params.replaceDay && params.replaceMealIndex !== undefined
   const [category, setCategory] = useState('')
   const [difficulty, setDifficulty] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
@@ -111,6 +113,14 @@ export default function RecipeLibraryScreen() {
           A shared catalog of ready-made recipes — browse, search, and add any of them straight to your own recipe box or plan.
         </Text>
 
+        {isReplaceMode && (
+          <View className="mb-3 rounded-xl border px-3 py-2.5" style={{ borderColor: c.blue, backgroundColor: 'rgba(87,169,255,0.1)' }}>
+            <Text className="text-xs" style={{ color: c.blue }}>
+              Choosing a replacement for <Text style={{ fontWeight: '700' }}>{params.replaceMealName}</Text> on {params.replaceDay}
+            </Text>
+          </View>
+        )}
+
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -154,7 +164,14 @@ export default function RecipeLibraryScreen() {
               <Pressable
                 key={recipe.id}
                 onPress={() =>
-                  router.push({ pathname: '/(tabs)/recipes/library-detail', params: { id: String(recipe.id), recipe: JSON.stringify(recipe) } })
+                  router.push({
+                    pathname: '/(tabs)/recipes/library-detail',
+                    params: {
+                      id: String(recipe.id),
+                      recipe: JSON.stringify(recipe),
+                      ...(isReplaceMode ? { replaceDay: params.replaceDay!, replaceMealIndex: params.replaceMealIndex!, replaceMealName: params.replaceMealName! } : {}),
+                    },
+                  })
                 }
                 className="overflow-hidden rounded-2xl border"
                 style={{ borderColor: c.border, backgroundColor: c.bg2 }}

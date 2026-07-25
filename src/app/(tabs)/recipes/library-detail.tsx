@@ -31,8 +31,9 @@ const TIME_SLOTS = [
 export default function LibraryRecipeDetailScreen() {
   const c = useThemeColors()
   const router = useRouter()
-  const params = useLocalSearchParams<{ id: string; recipe: string }>()
-  const { plan, addMealToDay } = usePlan()
+  const params = useLocalSearchParams<{ id: string; recipe: string; replaceDay?: string; replaceMealIndex?: string; replaceMealName?: string }>()
+  const { plan, addMealToDay, replaceMeal } = usePlan()
+  const isReplaceMode = !!params.replaceDay && params.replaceMealIndex !== undefined
 
   const [recipe] = useState<LibraryRecipe | null>(() => {
     try {
@@ -87,6 +88,27 @@ export default function LibraryRecipeDetailScreen() {
       ingredients: recipe.ingredients.map((i) => (i.qty ? `${i.qty} ${i.name}` : i.name)).join(', '),
     })
     setPlanDone(true)
+  }
+
+  const [replaced, setReplaced] = useState(false)
+
+  function handleReplace() {
+    if (!recipe || !isReplaceMode) return
+    const mealIndex = parseInt(params.replaceMealIndex!, 10)
+    // Preserve the original meal's time slot (e.g. "Breakfast 7:00") —
+    // we're replacing in place, not moving it to a different slot.
+    const originalTime = plan?.days.find((d) => d.day === params.replaceDay)?.meals[mealIndex]?.time ?? ''
+    const per = perServingMacros(recipe)
+    replaceMeal(params.replaceDay!, mealIndex, {
+      time: originalTime,
+      name: recipe.name,
+      protein: per.protein,
+      carbs: per.carbs,
+      fat: per.fat,
+      kcal: per.kcal,
+      ingredients: recipe.ingredients.map((i) => (i.qty ? `${i.qty} ${i.name}` : i.name)).join(', '),
+    })
+    setReplaced(true)
   }
 
   if (!recipe) {
@@ -161,39 +183,67 @@ export default function LibraryRecipeDetailScreen() {
         {addError ? <Text className="mt-2 text-xs" style={{ color: c.red }}>{addError}</Text> : null}
       </View>
 
-      {/* Add to Plan */}
-      <View className="mb-3 rounded-xl border p-3.5" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
-        <Pressable onPress={() => { setPlanOpen((v) => !v); setPlanDone(false) }}>
-          <Text className="text-sm font-bold" style={{ color: c.orange }}>Add to Plan</Text>
-        </Pressable>
-        {planOpen && (
-          <View className="mt-3 gap-3">
-            {planDone ? (
-              <Text className="text-xs" style={{ color: c.muted }}>
-                Added to {planDay}. Note: the Haul shopping list wasn't updated automatically — add anything missing by hand.
+      {isReplaceMode ? (
+        /* Replace mode — swapping this recipe in for one specific meal already on the plan, in place */
+        <View className="mb-3 rounded-xl border p-3.5" style={{ borderColor: c.blue, backgroundColor: 'rgba(87,169,255,0.1)' }}>
+          {replaced ? (
+            <Text className="text-xs" style={{ color: c.text }}>
+              ✓ Replaced. Note: the Haul shopping list wasn't updated automatically — add anything missing by hand.
+            </Text>
+          ) : (
+            <>
+              <Text className="mb-2 text-sm font-bold" style={{ color: c.blue }}>
+                Replace {params.replaceMealName} on {params.replaceDay}
               </Text>
-            ) : (
-              <>
-                <Text className="text-xs font-semibold" style={{ color: c.muted }}>Day</Text>
-                <PillGroup options={(plan?.days ?? []).map((d) => ({ value: d.day, label: d.day }))} value={planDay} onChange={setPlanDay} />
-                <Text className="text-xs font-semibold" style={{ color: c.muted }}>When</Text>
-                <PillGroup options={TIME_SLOTS} value={planSlot} onChange={setPlanSlot} />
+              <Text className="mb-3 text-xs" style={{ color: c.muted }}>
+                Uses this recipe's own per-serving macros — {serving.kcal} kcal, {serving.protein}g protein, {serving.carbs}g carbs, {serving.fat}g fat.
+              </Text>
+              <Pressable onPress={handleReplace} className="items-center rounded-xl py-2.5" style={{ backgroundColor: c.blue }}>
+                <Text className="text-sm font-extrabold text-bg">Confirm Replace</Text>
+              </Pressable>
+            </>
+          )}
+          {replaced && (
+            <Pressable onPress={() => router.push('/(tabs)/fuel')} className="mt-3 items-center rounded-xl bg-lime py-2.5">
+              <Text className="text-sm font-extrabold text-bg">Back to Fuel</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        /* Add to Plan */
+        <View className="mb-3 rounded-xl border p-3.5" style={{ borderColor: c.border, backgroundColor: c.bg2 }}>
+          <Pressable onPress={() => { setPlanOpen((v) => !v); setPlanDone(false) }}>
+            <Text className="text-sm font-bold" style={{ color: c.orange }}>Add to Plan</Text>
+          </Pressable>
+          {planOpen && (
+            <View className="mt-3 gap-3">
+              {planDone ? (
                 <Text className="text-xs" style={{ color: c.muted }}>
-                  Adds 1 serving — {serving.kcal} kcal, {serving.protein}g protein, {serving.carbs}g carbs, {serving.fat}g fat.
+                  Added to {planDay}. Note: the Haul shopping list wasn't updated automatically — add anything missing by hand.
                 </Text>
-                <Pressable
-                  onPress={handleAddToPlan}
-                  disabled={!planDay}
-                  className="items-center rounded-xl bg-lime py-2.5"
-                  style={{ opacity: planDay ? 1 : 0.5 }}
-                >
-                  <Text className="text-sm font-extrabold text-bg">Confirm</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        )}
-      </View>
+              ) : (
+                <>
+                  <Text className="text-xs font-semibold" style={{ color: c.muted }}>Day</Text>
+                  <PillGroup options={(plan?.days ?? []).map((d) => ({ value: d.day, label: d.day }))} value={planDay} onChange={setPlanDay} />
+                  <Text className="text-xs font-semibold" style={{ color: c.muted }}>When</Text>
+                  <PillGroup options={TIME_SLOTS} value={planSlot} onChange={setPlanSlot} />
+                  <Text className="text-xs" style={{ color: c.muted }}>
+                    Adds 1 serving — {serving.kcal} kcal, {serving.protein}g protein, {serving.carbs}g carbs, {serving.fat}g fat.
+                  </Text>
+                  <Pressable
+                    onPress={handleAddToPlan}
+                    disabled={!planDay}
+                    className="items-center rounded-xl bg-lime py-2.5"
+                    style={{ opacity: planDay ? 1 : 0.5 }}
+                  >
+                    <Text className="text-sm font-extrabold text-bg">Confirm</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+      )}
     </ScrollView>
   )
 }

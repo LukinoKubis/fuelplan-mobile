@@ -85,6 +85,9 @@ export default function FuelScreen() {
               onToggleEaten={() => toggleEaten(`${day.day}-${i}`)}
               favorite={isFavorite(meal.name)}
               onToggleFavorite={() => toggleFavorite(meal.name)}
+              onReplace={() =>
+                router.push({ pathname: '/(tabs)/recipes/library', params: { replaceDay: day.day, replaceMealIndex: String(i), replaceMealName: meal.name } })
+              }
             />
           ))}
         </ScrollView>
