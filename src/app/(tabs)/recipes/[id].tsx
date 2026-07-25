@@ -66,6 +66,9 @@ export default function RecipeDetailScreen() {
   const [addSlot, setAddSlot] = useState(TIME_SLOTS[0].value)
   const [addDone, setAddDone] = useState(false)
 
+  const [tagInput, setTagInput] = useState('')
+  const [savingTags, setSavingTags] = useState(false)
+
   const [improveOpen, setImproveOpen] = useState(false)
   const [instruction, setInstruction] = useState('')
   const [improving, setImproving] = useState(false)
@@ -114,6 +117,40 @@ export default function RecipeDetailScreen() {
       setImproveError(err instanceof ApiError ? err.message : friendlyErrorMessage(err))
     } finally {
       setImproving(false)
+    }
+  }
+
+  /** Adds a user-typed tag (deduped case-insensitively), saved immediately via the same upsert-by-id endpoint everything else here uses. */
+  async function handleAddTag() {
+    const tag = tagInput.trim()
+    if (!recipe || !tag) return
+    const existing = recipe.tags || []
+    if (existing.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+      setTagInput('')
+      return
+    }
+    setSavingTags(true)
+    try {
+      const res = await saveRecipe({ ...recipe, tags: [...existing, tag] })
+      setRecipe(res.recipe)
+      setTagInput('')
+    } catch {
+      /* non-critical — tag just didn't save, try again */
+    } finally {
+      setSavingTags(false)
+    }
+  }
+
+  async function handleRemoveTag(tag: string) {
+    if (!recipe) return
+    setSavingTags(true)
+    try {
+      const res = await saveRecipe({ ...recipe, tags: (recipe.tags || []).filter((t) => t !== tag) })
+      setRecipe(res.recipe)
+    } catch {
+      /* non-critical */
+    } finally {
+      setSavingTags(false)
     }
   }
 
@@ -217,6 +254,31 @@ export default function RecipeDetailScreen() {
       ) : (
         <View className="mb-3" />
       )}
+
+      <View className="mb-4 flex-row flex-wrap items-center gap-1.5">
+        {(recipe.tags || []).map((tag) => (
+          <Pressable
+            key={tag}
+            onPress={() => handleRemoveTag(tag)}
+            disabled={savingTags}
+            className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
+            style={{ backgroundColor: c.bg2 }}
+          >
+            <Text className="text-[11px]" style={{ color: c.muted }}>{tag}</Text>
+            <Text className="text-[11px]" style={{ color: c.muted }}>×</Text>
+          </Pressable>
+        ))}
+        <TextInput
+          value={tagInput}
+          onChangeText={setTagInput}
+          onSubmitEditing={handleAddTag}
+          placeholder="+ add label"
+          placeholderTextColor={c.muted}
+          returnKeyType="done"
+          className="rounded-full border px-2.5 py-1 text-[11px]"
+          style={{ borderColor: c.border, color: c.text, minWidth: 90 }}
+        />
+      </View>
 
       <Text className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>
         Per serving{recipe.servings && recipe.servings > 1 ? ` · serves ${recipe.servings}` : ''}

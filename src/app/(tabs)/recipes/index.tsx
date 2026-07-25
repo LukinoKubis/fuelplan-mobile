@@ -4,15 +4,23 @@ import { Image } from 'expo-image'
 import { Text } from '@/components/Text'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Header } from '../../../components/layout/Header'
+import { PillGroup } from '../../../components/survey/Chips'
 import { getRecipeList } from '../../../lib/client'
 import { useThemeColors } from '../../../lib/themeColors'
 import type { Recipe } from '../../../types/recipe'
 
-/** Recipes tab — the personal recipe box list. Refetches every time the tab regains focus, so a save/delete elsewhere is reflected without manual pull-to-refresh. */
+/**
+ * Recipes tab — the personal recipe box list. Refetches every time the tab
+ * regains focus, so a save/delete/tag-edit elsewhere is reflected without
+ * manual pull-to-refresh. No separate "folder" entity — tags (free-form
+ * labels set on the detail screen) are the whole organization mechanism,
+ * filtered here client-side since the full list is already in memory.
+ */
 export default function RecipesListScreen() {
   const c = useThemeColors()
   const router = useRouter()
   const [recipes, setRecipes] = useState<Recipe[] | null>(null)
+  const [activeTag, setActiveTag] = useState('')
 
   useFocusEffect(
     useCallback(() => {
@@ -21,6 +29,9 @@ export default function RecipesListScreen() {
         .catch(() => setRecipes((prev) => prev ?? []))
     }, [])
   )
+
+  const allTags = Array.from(new Set((recipes ?? []).flatMap((r) => r.tags || []))).sort()
+  const visibleRecipes = activeTag ? (recipes ?? []).filter((r) => (r.tags || []).includes(activeTag)) : recipes
 
   return (
     <View className="flex-1 bg-light-bg dark:bg-bg">
@@ -41,15 +52,24 @@ export default function RecipesListScreen() {
           <Text className="text-sm font-semibold" style={{ color: c.text }}>Browse Recipe Library →</Text>
         </Pressable>
 
+        {allTags.length > 0 && (
+          <View className="mb-3">
+            <PillGroup options={[{ value: '', label: 'All' }, ...allTags.map((t) => ({ value: t, label: t }))]} value={activeTag} onChange={setActiveTag} />
+          </View>
+        )}
+
         {recipes === null && <Text className="text-sm" style={{ color: c.muted }}>Loading…</Text>}
         {recipes?.length === 0 && (
           <Text className="text-sm" style={{ color: c.muted }}>
             No saved recipes yet. Paste a recipe or a caption from Instagram/TikTok to get started.
           </Text>
         )}
+        {recipes && recipes.length > 0 && visibleRecipes?.length === 0 && (
+          <Text className="text-sm" style={{ color: c.muted }}>No recipes tagged "{activeTag}".</Text>
+        )}
 
         <View className="gap-2.5">
-          {recipes?.map((recipe) => (
+          {visibleRecipes?.map((recipe) => (
             <Pressable
               key={recipe.id}
               onPress={() => router.push({ pathname: '/(tabs)/recipes/[id]', params: { id: String(recipe.id), recipe: JSON.stringify(recipe) } })}
@@ -65,6 +85,15 @@ export default function RecipesListScreen() {
                   {Math.round((recipe.macros?.kcal ?? 0) / (recipe.servings && recipe.servings > 0 ? recipe.servings : 1))} kcal/serving
                   {recipe.servings && recipe.servings > 1 ? ` (serves ${recipe.servings})` : ''} · {recipe.ingredients.length} ingredient{recipe.ingredients.length === 1 ? '' : 's'}
                 </Text>
+                {recipe.tags && recipe.tags.length > 0 && (
+                  <View className="mt-1.5 flex-row flex-wrap gap-1">
+                    {recipe.tags.map((tag) => (
+                      <View key={tag} className="rounded-full px-2 py-0.5" style={{ backgroundColor: c.bg }}>
+                        <Text className="text-[10px]" style={{ color: c.muted }}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             </Pressable>
           ))}

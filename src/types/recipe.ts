@@ -18,6 +18,8 @@ export interface Recipe {
   sourceUrl?: string
   sourceCaption?: string
   sourcePlatform?: 'instagram' | 'tiktok' | 'manual' | 'other'
+  /** Free-form user-created labels (e.g. "quick", "meal prep", "high protein") — how the personal recipe box is organized/filtered. */
+  tags?: string[]
   /** Cosmetic cover photo — a base64 data URI, resized/compressed client-side before saving (see lib/recipePhoto.ts). Purely visual, unrelated to extraction. */
   photo?: string
   savedAt: string
