@@ -148,6 +148,22 @@ function cuisineBonus(recipe: LibraryRecipe, preferredCuisines: string[]): numbe
   return preferredCuisines.some((c) => recipe.cuisine.toLowerCase().includes(c.toLowerCase())) ? 20 : 0
 }
 
+/**
+ * A recipe the user has explicitly favorited (heart icon, meal-name based —
+ * see PlanContext) gets a scoring bonus, the same mechanism cuisineBonus
+ * uses. Exact case-insensitive name match only — no fuzzy/partial overlap,
+ * since a partial-name heuristic risks matching unrelated recipes (e.g.
+ * "Chicken Rice Bowl" vs "Beef Rice Bowl") more than it helps. Was
+ * previously a completely inert field once Library M5 replaced full-AI
+ * generation with this algorithmic picker (issue #26) — library-sourced
+ * meal names match exactly going forward since M5, so this closes the gap
+ * for anything favorited after that point without needing fuzzy matching.
+ */
+function favoriteBonus(recipe: LibraryRecipe, favoriteNames: string[]): number {
+  const name = recipe.name.toLowerCase()
+  return favoriteNames.some((f) => f.toLowerCase() === name) ? 25 : 0
+}
+
 const DIFFICULTY_ORDER = ['beginner', 'intermediate', 'advanced']
 
 /** A recipe matching the user's stated cooking skill gets a small bonus; one that's two tiers off (e.g. a beginner cook, an advanced recipe) gets a penalty. One tier off either direction is fine — no bonus, no penalty. */
@@ -168,23 +184,37 @@ function difficultyBonus(recipe: LibraryRecipe, cookingSkill: string): number {
  * per-day picks below (initialPickForSlot/repairDay) only ever choose
  * from within it.
  */
-function selectRotationPool(pool: LibraryRecipe[], target: Macros, count: number, preferredCuisines: string[], cookingSkill: string): LibraryRecipe[] {
+function selectRotationPool(
+  pool: LibraryRecipe[],
+  target: Macros,
+  count: number,
+  preferredCuisines: string[],
+  cookingSkill: string,
+  favoriteNames: string[]
+): LibraryRecipe[] {
   const scored = pool.map((recipe) => {
     const factor = bestFactorForTarget(recipe, target.kcal)
-    const score = dayError(scaledMacros(recipe, factor), target) - cuisineBonus(recipe, preferredCuisines) - difficultyBonus(recipe, cookingSkill)
+    const score =
+      dayError(scaledMacros(recipe, factor), target) - cuisineBonus(recipe, preferredCuisines) - difficultyBonus(recipe, cookingSkill) - favoriteBonus(recipe, favoriteNames)
     return { recipe, score }
   })
   scored.sort((a, b) => a.score - b.score)
   return scored.slice(0, Math.max(1, count)).map((s) => s.recipe)
 }
 
-function initialPickForSlot(pool: LibraryRecipe[], target: Macros, usedCounts: Map<number, number>, preferredCuisines: string[]): { recipe: LibraryRecipe; factor: number } | null {
+function initialPickForSlot(
+  pool: LibraryRecipe[],
+  target: Macros,
+  usedCounts: Map<number, number>,
+  preferredCuisines: string[],
+  favoriteNames: string[]
+): { recipe: LibraryRecipe; factor: number } | null {
   let best: { recipe: LibraryRecipe; factor: number; score: number } | null = null
 
   for (const recipe of pool) {
     const factor = bestFactorForTarget(recipe, target.kcal)
     const m = scaledMacros(recipe, factor)
-    const score = dayError(m, target) + repeatPenalty(usedCounts.get(recipe.id) || 0) - cuisineBonus(recipe, preferredCuisines)
+    const score = dayError(m, target) + repeatPenalty(usedCounts.get(recipe.id) || 0) - cuisineBonus(recipe, preferredCuisines) - favoriteBonus(recipe, favoriteNames)
 
     if (!best || score < best.score) best = { recipe, factor, score }
   }
@@ -203,7 +233,7 @@ function initialPickForSlot(pool: LibraryRecipe[], target: Macros, usedCounts: M
  * slot's static sub-target — and stops as soon as a pass finds no
  * improving swap (a local optimum, not a fixed iteration count).
  */
-function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCounts: Map<number, number>, preferredCuisines: string[]): Pick[] {
+function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCounts: Map<number, number>, preferredCuisines: string[], favoriteNames: string[]): Pick[] {
   const current = [...picks]
 
   for (let iter = 0; iter < MAX_REPAIR_ITERATIONS; iter++) {
@@ -223,7 +253,8 @@ function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCount
         const error =
           dayError(candidateTotals, target) +
           repeatPenalty(alreadyThisSlot ? Math.max(0, usedCount - 1) : usedCount) * 0.3 -
-          cuisineBonus(recipe, preferredCuisines) * 0.3
+          cuisineBonus(recipe, preferredCuisines) * 0.3 -
+          favoriteBonus(recipe, favoriteNames) * 0.3
 
         if (error < currentError - 0.01 && (!bestSwap || error < bestSwap.error)) {
           bestSwap = { index: i, recipe, factor, error }
@@ -252,9 +283,11 @@ function repairDay(picks: Pick[], target: Macros, pools: LibraryPools, usedCount
  * proportional macro sub-targets, a local-search repair pass that swaps
  * toward a better day-level macro fit (see repairDay, still constrained to
  * the same capped pool), then one bounded final kcal-only correction so
- * the day's kcal total lands almost exactly on target.
+ * the day's kcal total lands almost exactly on target. `favoriteNames`
+ * (PlanContext's meal-name favorites, exact-match) gets the same kind of
+ * scoring bonus as cuisine preference — see favoriteBonus() (issue #26).
  */
-export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools: LibraryPools): DayPlan[] {
+export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools: LibraryPools, favoriteNames: string[] = []): DayPlan[] {
   // A true content gap (library not seeded, or a fetch that "succeeded"
   // with nothing in it) — fail loudly here rather than silently returning
   // 7 empty days. Scaling handles the magnitude problem (see module doc),
@@ -285,7 +318,7 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
   const rotationPools: LibraryPools = {} as LibraryPools
   for (const slot of SLOTS) {
     const target: Macros = { kcal: macros.kcal * slot.share, protein: macros.protein * slot.share, carbs: macros.carbs * slot.share, fat: macros.fat * slot.share }
-    rotationPools[slot.key] = selectRotationPool(effectivePools[slot.key], target, rotationCount, profile.cuisines, profile.cookingSkill)
+    rotationPools[slot.key] = selectRotationPool(effectivePools[slot.key], target, rotationCount, profile.cuisines, profile.cookingSkill, favoriteNames)
   }
 
   const usedCounts = new Map<number, number>()
@@ -296,13 +329,13 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
 
     for (const slot of SLOTS) {
       const target: Macros = { kcal: macros.kcal * slot.share, protein: macros.protein * slot.share, carbs: macros.carbs * slot.share, fat: macros.fat * slot.share }
-      const picked = initialPickForSlot(rotationPools[slot.key], target, usedCounts, profile.cuisines)
+      const picked = initialPickForSlot(rotationPools[slot.key], target, usedCounts, profile.cuisines, favoriteNames)
       if (!picked) continue
       picks.push({ slot, recipe: picked.recipe, factor: picked.factor })
       usedCounts.set(picked.recipe.id, (usedCounts.get(picked.recipe.id) || 0) + 1)
     }
 
-    picks = repairDay(picks, macros, rotationPools, usedCounts, profile.cuisines)
+    picks = repairDay(picks, macros, rotationPools, usedCounts, profile.cuisines, favoriteNames)
 
     const actualKcal = sumMacros(picks).kcal
     const correction = actualKcal > 0 ? Math.min(1.15, Math.max(0.85, macros.kcal / actualKcal)) : 1

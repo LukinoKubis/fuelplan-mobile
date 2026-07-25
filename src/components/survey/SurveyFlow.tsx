@@ -36,7 +36,7 @@ interface SurveyFlowProps {
  */
 export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: SurveyFlowProps) {
   const c = useThemeColors()
-  const { profile, setProfile, setPlan } = usePlan()
+  const { profile, setProfile, setPlan, favorites } = usePlan()
   const { refreshRemaining } = useAccount()
 
   // Skip the "what's your name" step on every re-generation once we already
@@ -80,7 +80,7 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
 
     try {
       const pools = await getLibraryPools()
-      const days = assemblePlanFromLibrary(macros, profile, pools)
+      const days = assemblePlanFromLibrary(macros, profile, pools, favorites.map((f) => f.name))
 
       const { system, messages, model, max_tokens } = buildPrepAndShoppingRequest(days)
       const response = await postClaude({ model, max_tokens, system, messages }, abortRef.current.signal)
