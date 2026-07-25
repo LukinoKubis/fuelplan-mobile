@@ -77,6 +77,23 @@ export async function postClaude(body: GenerateRequest, signal?: AbortSignal): P
   return response.json()
 }
 
+/**
+ * Small, capped-token Anthropic proxy for lightweight one-shot suggestions
+ * (e.g. "Get AI Advice") — same shape as postClaude but hits
+ * /api/claude/suggest, which does NOT deduct a generation credit (backend
+ * caps max_tokens at 1200 instead, as its own abuse guard).
+ */
+export async function postClaudeSuggest(body: GenerateRequest, signal?: AbortSignal): Promise<ClaudeResponse> {
+  const response = await fetch(`${API_BASE}/api/claude/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    signal,
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
 /** Fetches the signed-in user's remaining AI-generation credits. */
 export async function fetchUsage(): Promise<{ remaining: number }> {
   const response = await fetch(`${API_BASE}/api/usage`, {

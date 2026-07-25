@@ -31,7 +31,7 @@ const TIME_SLOTS = [
 export default function LibraryRecipeDetailScreen() {
   const c = useThemeColors()
   const router = useRouter()
-  const params = useLocalSearchParams<{ id: string; recipe: string; replaceDay?: string; replaceMealIndex?: string; replaceMealName?: string }>()
+  const params = useLocalSearchParams<{ id: string; recipe: string; replaceDay?: string; replaceMealIndex?: string; replaceMealName?: string; presetDay?: string }>()
   const { plan, addMealToDay, replaceMeal } = usePlan()
   const isReplaceMode = !!params.replaceDay && params.replaceMealIndex !== undefined
 
@@ -56,8 +56,8 @@ export default function LibraryRecipeDetailScreen() {
   const [added, setAdded] = useState(false)
   const [addError, setAddError] = useState('')
 
-  const [planOpen, setPlanOpen] = useState(false)
-  const [planDay, setPlanDay] = useState('')
+  const [planOpen, setPlanOpen] = useState(!!params.presetDay)
+  const [planDay, setPlanDay] = useState(params.presetDay ?? '')
   const [planSlot, setPlanSlot] = useState(TIME_SLOTS[0].value)
   const [planDone, setPlanDone] = useState(false)
 

@@ -12,7 +12,7 @@ import { ErrorPanel } from '../shared/ErrorPanel'
 import { usePlan } from '../../state/PlanContext'
 import { useAccount } from '../../state/AccountContext'
 import { ApiError, postClaude } from '../../lib/client'
-import { assemblePlanFromLibrary, getLibraryPools } from '../../lib/planAssembly'
+import { WEEK_DAYS, assemblePlanFromLibrary, getLibraryPools } from '../../lib/planAssembly'
 import { buildPrepAndShoppingRequest } from '../../lib/prepAndShoppingPrompt'
 import { resolveProfileMacros } from '../../lib/macros'
 import type { Plan, PrepTask, ShoppingCategory } from '../../types/plan'
@@ -112,6 +112,29 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     }
   }
 
+  /**
+   * Skips both the algorithm and the AI entirely — a blank 7-day plan at
+   * the resolved macro targets, meals added one at a time from the Fuel
+   * tab's empty-day state (reuses the same "Add to Plan" flow the library
+   * detail screen already has). Free — no generation credit spent.
+   */
+  function handleBuildManually() {
+    const macros = resolveProfileMacros(profile)
+    if (!macros) {
+      setError({ message: 'Please fill in all macro / stat fields.', isOutOfPlans: false })
+      setStep(3)
+      return
+    }
+    const plan: Plan = {
+      summary: macros,
+      prep_tasks: [],
+      days: WEEK_DAYS.map((day) => ({ day, kcal: 0, protein: 0, carbs: 0, fat: 0, meals: [] })),
+      shopping_list: [],
+    }
+    setPlan(plan, profile.name.trim() || 'Your')
+    onGenerated()
+  }
+
   /** Aborts the in-flight generation request and dismisses the loading overlay. */
   function handleCancelLoading() {
     abortRef.current?.abort()
@@ -173,6 +196,13 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
             />
           )}
           {step === 3 && <Step3Macros profile={profile} onChange={patch} />}
+          {step === 3 && (
+            <Pressable onPress={handleBuildManually} className="mb-2 mt-1 items-center py-2">
+              <Text className="text-xs font-semibold underline" style={{ color: c.muted }}>
+                Or build it myself, meal by meal →
+              </Text>
+            </Pressable>
+          )}
         </ScrollView>
 
         <View className="flex-row gap-3 border-t px-5 py-3" style={{ borderColor: c.border, backgroundColor: c.bg }}>

@@ -64,7 +64,7 @@ function HeartButton({ favorited, onPress }: { favorited: boolean; onPress: () =
 export default function RecipeLibraryScreen() {
   const c = useThemeColors()
   const router = useRouter()
-  const params = useLocalSearchParams<{ replaceDay?: string; replaceMealIndex?: string; replaceMealName?: string }>()
+  const params = useLocalSearchParams<{ replaceDay?: string; replaceMealIndex?: string; replaceMealName?: string; presetDay?: string }>()
   const isReplaceMode = !!params.replaceDay && params.replaceMealIndex !== undefined
   const [category, setCategory] = useState('')
   const [difficulty, setDifficulty] = useState('')
@@ -120,6 +120,13 @@ export default function RecipeLibraryScreen() {
             </Text>
           </View>
         )}
+        {!isReplaceMode && params.presetDay && (
+          <View className="mb-3 rounded-xl border px-3 py-2.5" style={{ borderColor: c.orange, backgroundColor: 'rgba(255,159,67,0.1)' }}>
+            <Text className="text-xs" style={{ color: c.orange }}>
+              Picking a meal to add to <Text style={{ fontWeight: '700' }}>{params.presetDay}</Text>
+            </Text>
+          </View>
+        )}
 
         <TextInput
           value={search}
@@ -169,7 +176,11 @@ export default function RecipeLibraryScreen() {
                     params: {
                       id: String(recipe.id),
                       recipe: JSON.stringify(recipe),
-                      ...(isReplaceMode ? { replaceDay: params.replaceDay!, replaceMealIndex: params.replaceMealIndex!, replaceMealName: params.replaceMealName! } : {}),
+                      ...(isReplaceMode
+                        ? { replaceDay: params.replaceDay!, replaceMealIndex: params.replaceMealIndex!, replaceMealName: params.replaceMealName! }
+                        : params.presetDay
+                          ? { presetDay: params.presetDay }
+                          : {}),
                     },
                   })
                 }

@@ -11,8 +11,10 @@ import { DayTabs } from '../../../components/fuel/DayTabs'
 import { DayMacroBar } from '../../../components/fuel/DayMacroBar'
 import { MealCard } from '../../../components/fuel/MealCard'
 import { ErrorBoundary } from '../../../components/shared/ErrorBoundary'
-import { createCheckout } from '../../../lib/client'
+import { ApiError, createCheckout, postClaudeSuggest } from '../../../lib/client'
+import { buildDayAdviceRequest } from '../../../lib/advicePrompt'
 import { useThemeColors } from '../../../lib/themeColors'
+import { friendlyErrorMessage } from '../../../lib/errorMessage'
 
 /** Fuel tab — shows the survey (no plan yet / regenerating) or the day switcher + macro bar + meal cards. */
 export default function FuelScreen() {
@@ -27,6 +29,28 @@ export default function FuelScreen() {
   })
 
   const showSurvey = !plan || surveyMode
+
+  const [advice, setAdvice] = useState<{ day: number; text: string } | null>(null)
+  const [adviceLoading, setAdviceLoading] = useState(false)
+  const [adviceError, setAdviceError] = useState('')
+
+  async function handleGetAdvice() {
+    if (!plan) return
+    const day = plan.days[Math.min(activeDay, plan.days.length - 1)]
+    setAdviceLoading(true)
+    setAdviceError('')
+    setAdvice(null)
+    try {
+      const { system, messages, model, max_tokens } = buildDayAdviceRequest(day, plan.summary)
+      const response = await postClaudeSuggest({ model, max_tokens, system, messages })
+      const text = response.content[0]?.text?.trim() || "Couldn't get advice this time — try again."
+      setAdvice({ day: activeDay, text })
+    } catch (err) {
+      setAdviceError(err instanceof ApiError ? err.message : friendlyErrorMessage(err))
+    } finally {
+      setAdviceLoading(false)
+    }
+  }
 
   async function handleBuyPlans() {
     try {
@@ -96,20 +120,67 @@ export default function FuelScreen() {
         <DayTabs days={plan.days.map((d) => d.day)} active={activeDay} onChange={setActiveDay} />
         <DayMacroBar day={day} target={plan.summary} />
 
+        <View className="px-4 pt-3">
+          <Pressable
+            onPress={handleGetAdvice}
+            disabled={adviceLoading}
+            className="flex-row items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2"
+            style={{ borderColor: c.blue, backgroundColor: 'rgba(87,169,255,0.1)', opacity: adviceLoading ? 0.6 : 1 }}
+          >
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={c.blue} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              <Path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+            </Svg>
+            <Text className="text-xs font-bold" style={{ color: c.blue }}>
+              {adviceLoading ? 'Thinking…' : `Get AI Advice for ${day.day}`}
+            </Text>
+          </Pressable>
+          {adviceError ? <Text className="mt-2 text-xs" style={{ color: c.red }}>{adviceError}</Text> : null}
+          {advice && advice.day === activeDay && (
+            <View className="mt-2 rounded-xl border px-3.5 py-3" style={{ borderColor: c.blue, backgroundColor: 'rgba(87,169,255,0.08)' }}>
+              <Text className="text-xs leading-5" style={{ color: c.text }}>{advice.text}</Text>
+            </View>
+          )}
+        </View>
+
         <ScrollView contentContainerClassName="gap-3 p-4">
-          {day.meals.map((meal, i) => (
-            <MealCard
-              key={i}
-              meal={meal}
-              eaten={!!eaten[`${day.day}-${i}`]}
-              onToggleEaten={() => toggleEaten(`${day.day}-${i}`)}
-              favorite={isFavorite(meal.name)}
-              onToggleFavorite={() => toggleFavorite(meal.name)}
-              onReplace={() =>
-                router.push({ pathname: '/(tabs)/recipes/library', params: { replaceDay: day.day, replaceMealIndex: String(i), replaceMealName: meal.name } })
-              }
-            />
-          ))}
+          {day.meals.length === 0 ? (
+            <View className="items-center rounded-2xl border border-dashed px-5 py-10" style={{ borderColor: c.border }}>
+              <Text className="mb-1 text-center text-sm font-bold" style={{ color: c.text }}>No meals on {day.day} yet</Text>
+              <Text className="mb-4 text-center text-xs" style={{ color: c.muted }}>
+                Browse the recipe library and add meals one at a time to build this day yourself.
+              </Text>
+              <Pressable
+                onPress={() => router.push({ pathname: '/(tabs)/recipes/library', params: { presetDay: day.day } })}
+                className="items-center rounded-xl bg-lime px-5 py-2.5"
+              >
+                <Text className="text-sm font-extrabold text-bg">Browse Recipe Library →</Text>
+              </Pressable>
+            </View>
+          ) : (
+            day.meals.map((meal, i) => (
+              <MealCard
+                key={i}
+                meal={meal}
+                eaten={!!eaten[`${day.day}-${i}`]}
+                onToggleEaten={() => toggleEaten(`${day.day}-${i}`)}
+                favorite={isFavorite(meal.name)}
+                onToggleFavorite={() => toggleFavorite(meal.name)}
+                onReplace={() =>
+                  router.push({ pathname: '/(tabs)/recipes/library', params: { replaceDay: day.day, replaceMealIndex: String(i), replaceMealName: meal.name } })
+                }
+              />
+            ))
+          )}
+          {day.meals.length > 0 && (
+            <Pressable
+              onPress={() => router.push({ pathname: '/(tabs)/recipes/library', params: { presetDay: day.day } })}
+              className="items-center rounded-xl border border-dashed px-4 py-3"
+              style={{ borderColor: c.border }}
+            >
+              <Text className="text-xs font-bold" style={{ color: c.muted }}>+ Add another meal to {day.day}</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </View>
     </ErrorBoundary>

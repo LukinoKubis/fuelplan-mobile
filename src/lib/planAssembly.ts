@@ -2,7 +2,7 @@ import type { DayPlan, Macros, Meal } from '../types/plan'
 import type { LibraryRecipe } from '../types/recipeLibrary'
 import type { Profile } from '../types/profile'
 
-const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+export const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 interface Slot {
   key: 'breakfast' | 'lunch' | 'snack' | 'dinner'
