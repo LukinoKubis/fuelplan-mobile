@@ -529,13 +529,48 @@ within a looser range (matches typical macro-tracking priority).
   shopping-list fix. Lesson reinforced: don't trust a single hardened
   prompt attempt to be the whole fix for a real-world LLM JSON task —
   pair it with defensive parsing on the client.
+- **Every generation failing with "Got invalid JSON back"**, discovered
+  after the two fixes above (not caused by them): `claude-backend`'s
+  `/api/claude` runs every message through a shared sanitizer
+  (`sanitizeUserContent`) that silently truncates content over a length
+  cap — sized for the old callers' single free-text fields, not this
+  request's full 28-meal ingredient list (~11-12k chars). The request was
+  being cut mid-list before it ever reached Anthropic; Claude correctly
+  noticed and replied asking for the rest instead of returning JSON.
+  Diagnosed by generating the exact request body standalone (via `tsx`,
+  outside the app) and confirming it was complete and correct — the bug
+  was server-side, not in `prepAndShoppingPrompt.ts`. Fixed in
+  `claude-backend` (see that repo's CLAUDE.md for the full writeup) by
+  raising the cap. If a future feature adds output that looks
+  correct-when-inspected-locally but the AI's response claims the input
+  was incomplete, suspect this same shared-sanitizer truncation before
+  the prompt itself.
+
+**Meal rotation is capped, not free variety**: `VARIETY_OPTIONS` (survey
+step 3) is "Same every day" / "Switch between 2" / "Switch between 3", not
+the old "repeat/some/fully diverse" labels — meal prep is repetitive by
+design, most people rotate between at most 2-3 meals per slot. Enforced
+structurally, not just discouraged: `planAssembly.ts`'s
+`selectRotationPool()` picks the best-fitting N recipes for a slot once,
+for the whole week, before any day gets assigned — every day's pick and
+every repair-pass swap only ever chooses from within that capped set.
+
+**Library recipes are categorized by difficulty** (beginner/intermediate/
+advanced) — filterable in the library browse screen, shown as a badge on
+both the list and detail screens (`DifficultyBadge`, traffic-light colors,
+kept as its own badge rather than a macro-chip color so it doesn't read as
+another macro value). `planAssembly.ts`'s `selectRotationPool()` also
+biases selection toward the user's `cookingSkill` (already collected in
+the survey) — a matching recipe gets a bonus, one two tiers off (e.g. a
+beginner cook, an advanced recipe) gets a penalty.
 
 **Known gap, not yet addressed**: `PlanContext`'s meal-name favorites
 (the "favorite this meal" heart from the old AI-generation flow, meant to
 bias future generations toward liking those meals again) has no effect on
 the new algorithmic selection — `planAssembly.ts`'s scoring has no
 favorites input. Not wired up yet; worth a follow-up if it turns out to
-matter to users now that it's silently inert rather than removed.
+matter to users now that it's silently inert rather than removed. Tracked
+as issue #26.
 
 ## Milestones
 Tracked as GitHub issues on this repo (`gh issue list`), not just the
