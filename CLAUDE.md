@@ -565,6 +565,28 @@ structurally, not just discouraged: `planAssembly.ts`'s
 for the whole week, before any day gets assigned — every day's pick and
 every repair-pass swap only ever chooses from within that capped set.
 
+**Real bug hit and fixed, 2026-07-26: library macros were systematically
+underestimated.** `/api/admin/seed-library`'s original prompt only said
+"estimate macros realistically for the full recipe" with no
+per-ingredient methodology, which let Claude eyeball whole-dish totals
+instead of actually summing ingredient nutrition. Confirmed with
+"Overnight Oats with Banana and Peanut Butter" (300g oats, 600ml milk,
+4 tbsp peanut butter, 2 bananas, chia, servings=4): stored ~410 kcal/14g
+protein per serving vs a careful per-ingredient sum of ~580 kcal/21g
+protein per serving. Notably, `kcal = 4·protein + 4·carbs + 9·fat` held
+exactly across the whole library, so a math-consistency check alone
+wouldn't have caught this — the ratios were self-consistent, the absolute
+numbers were just low. Fixed for all 179 library recipes in two phases:
+124 via a stricter per-ingredient-summation prompt through
+`claude-backend`'s (now-removed) AI-calling recompute endpoint, before
+that ran the shared Anthropic account's credit balance to zero and took
+down every AI feature app-wide for real users; the remaining 55 by hand
+(ingredient-by-ingredient nutrition math, no AI call at all) submitted
+through `/api/admin/update-library-macros` — see that repo's CLAUDE.md
+("The ANTHROPIC_API_KEY is for real app users, not for developer/
+maintenance work") for the explicit rule this established: never spend
+the app's paid AI budget on internal maintenance/migration tooling.
+
 **Library recipes are categorized by difficulty** (beginner/intermediate/
 advanced) — filterable in the library browse screen, shown as a badge on
 both the list and detail screens (`DifficultyBadge`, traffic-light colors,
