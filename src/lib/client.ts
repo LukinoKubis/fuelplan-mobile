@@ -237,6 +237,47 @@ export async function deleteRecipe(recipeId: number): Promise<{ ok: boolean; rem
   return response.json()
 }
 
+export interface GeneratePlanV2Request {
+  macros: Macros
+  dietPref: string
+  dislikedFoods: string
+  cuisines: string[]
+  variety: string
+  cookingSkill: string
+}
+
+export interface GeneratePlanV2Response {
+  days: { day: string; meals: { slot: string; recipeId: number; servings: number }[] }[]
+}
+
+/**
+ * AI-driven meal selection (Plan generation M1/M2) — the backend owns a
+ * whole multi-turn Anthropic tool-use loop internally (Claude picks real
+ * recipes via a search_recipes tool, never invents one) and returns a
+ * small compact {day, meals:[{slot, recipeId, servings}]} shape, which
+ * the caller expands client-side via planAssembly.ts's
+ * expandCompactPlan(). Distinct from postClaude: this endpoint decrements
+ * exactly one credit for the WHOLE generation server-side (not per HTTP
+ * call), so callers should not treat this like a normal /api/claude hit.
+ *
+ * This can fail more often than the deterministic algorithmic picker by
+ * nature of being AI-driven (see fuelplan-mobile/CLAUDE.md's "Plan
+ * generation (Library M5)" section for the documented history of this
+ * exact class of flow being unreliable) — callers MUST fall back to
+ * assemblePlanFromLibrary on any failure, not surface an error directly.
+ * See SurveyFlow.tsx's handleGenerate for the fallback wiring.
+ */
+export async function postGeneratePlanV2(body: GeneratePlanV2Request, signal?: AbortSignal): Promise<GeneratePlanV2Response> {
+  const response = await fetch(`${API_BASE}/api/claude/generate-plan-v2`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    signal,
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) return parseErrorResponse(response)
+  return response.json()
+}
+
 /** Lists/searches the shared recipe library — every user reads the same admin-seeded catalog, filtered server-side. */
 export async function getRecipeLibrary(params?: { category?: string; search?: string; favoritesOnly?: boolean; difficulty?: string }): Promise<{ recipes: LibraryRecipe[] }> {
   const response = await fetch(`${API_BASE}/api/library/list`, {

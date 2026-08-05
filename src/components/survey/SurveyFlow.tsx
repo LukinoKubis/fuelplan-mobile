@@ -11,11 +11,11 @@ import { LoadingOverlay } from '../shared/LoadingOverlay'
 import { ErrorPanel } from '../shared/ErrorPanel'
 import { usePlan } from '../../state/PlanContext'
 import { useAccount } from '../../state/AccountContext'
-import { ApiError, postClaude } from '../../lib/client'
-import { assemblePlanFromLibrary, getLibraryPools } from '../../lib/planAssembly'
+import { ApiError, postClaude, postClaudePrepAndShopping, postGeneratePlanV2 } from '../../lib/client'
+import { assemblePlanFromLibrary, expandCompactPlan, getLibraryPools } from '../../lib/planAssembly'
 import { buildPrepAndShoppingRequest } from '../../lib/prepAndShoppingPrompt'
 import { resolveProfileMacros } from '../../lib/macros'
-import type { Plan, PrepTask, ShoppingCategory } from '../../types/plan'
+import type { DayPlan, Plan, PrepTask, ShoppingCategory } from '../../types/plan'
 import { useThemeColors } from '../../lib/themeColors'
 import { friendlyErrorMessage } from '../../lib/errorMessage'
 
@@ -57,14 +57,32 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
   }
 
   /**
-   * Resolves macros, assembles the week algorithmically from the shared
-   * recipe library (no AI — see planAssembly.ts), then makes one small AI
-   * call to turn those already-decided meals into batch-cook steps + a
-   * merged shopping list. Replaces the old single 16k-token full-plan
-   * generation entirely (see issue #25) — "Generate My Plan" still costs
-   * one generation credit (the credit decrement lives in /api/claude,
-   * still called here for the prep+shopping step), it just no longer
-   * spends tokens inventing the meals themselves.
+   * Picks the week's meals, then makes one small AI call to turn those
+   * already-decided meals into batch-cook steps + a merged shopping list.
+   *
+   * Meal selection tries the AI tool-use path first (Plan generation
+   * M1/M2, `/api/claude/generate-plan-v2` — Claude picks real recipes via
+   * a search_recipes tool, never invents one) and falls back to the
+   * deterministic algorithmic picker (`assemblePlanFromLibrary`, no AI)
+   * on ANY failure — network error, timeout, out-of-credits, a
+   * could-not-assemble/invalid-shape response, anything. This fallback is
+   * not optional polish: this exact flow (AI-driven plan generation) has
+   * a documented history of production unreliability (see
+   * fuelplan-mobile/CLAUDE.md's "Plan generation (Library M5)" section —
+   * repeated schema drift, "Got invalid JSON back", a truncation bug —
+   * which is why the algorithmic picker became primary in the first
+   * place). A failed/slow/invalid AI generation must never leave the user
+   * with nothing.
+   *
+   * Credit accounting: `generate-plan-v2` already decrements one credit
+   * server-side when the AI path is used, so the prep+shopping call after
+   * it uses the non-decrementing `/api/claude/prep-and-shopping` endpoint
+   * instead of `postClaude` — using the decrementing endpoint for both
+   * steps would silently charge two credits for one "Generate My Plan".
+   * When the fallback (free, no-AI) path is used instead, the
+   * prep+shopping call keeps using the decrementing `postClaude`, exactly
+   * as before this feature existed — so "Generate My Plan" still costs
+   * exactly one credit total either way.
    */
   async function handleGenerate() {
     const macros = resolveProfileMacros(profile)
@@ -77,13 +95,37 @@ export function SurveyFlow({ onGenerated, onBuyPlans, canCancel, onCancel }: Sur
     setLoading(true)
     setError(null)
     abortRef.current = new AbortController()
+    const signal = abortRef.current.signal
 
     try {
       const pools = await getLibraryPools()
-      const days = assemblePlanFromLibrary(macros, profile, pools, favorites.map((f) => f.name))
+
+      let days: DayPlan[]
+      let usedAI = false
+      try {
+        const compact = await postGeneratePlanV2(
+          {
+            macros,
+            dietPref: profile.dietPref,
+            dislikedFoods: profile.dislikedFoods,
+            cuisines: profile.cuisines,
+            variety: profile.variety,
+            cookingSkill: profile.cookingSkill,
+          },
+          signal
+        )
+        days = expandCompactPlan(compact, pools)
+        usedAI = true
+      } catch (aiErr) {
+        if (aiErr instanceof DOMException && aiErr.name === 'AbortError') throw aiErr
+        console.warn('AI plan generation failed, falling back to the algorithmic picker:', aiErr)
+        days = assemblePlanFromLibrary(macros, profile, pools, favorites.map((f) => f.name))
+      }
 
       const { system, messages, model, max_tokens } = buildPrepAndShoppingRequest(days)
-      const response = await postClaude({ model, max_tokens, system, messages }, abortRef.current.signal)
+      const response = usedAI
+        ? await postClaudePrepAndShopping({ model, max_tokens, system, messages }, signal)
+        : await postClaude({ model, max_tokens, system, messages }, signal)
       const rawText = response.content[0]?.text || ''
       const cleaned = rawText
         .replace(/^```json\s*/i, '')

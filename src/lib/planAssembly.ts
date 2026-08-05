@@ -364,6 +364,65 @@ export function assemblePlanFromLibrary(macros: Macros, profile: Profile, pools:
   return days
 }
 
+export interface CompactPlan {
+  days: { day: string; meals: { slot: string; recipeId: number; servings: number }[] }[]
+}
+
+const SLOT_TIME: Record<string, string> = { breakfast: 'Breakfast 7:00', lunch: 'Lunch 13:00', snack: 'Snack 16:00', dinner: 'Dinner 19:30' }
+const SLOT_ORDER = ['breakfast', 'lunch', 'snack', 'dinner']
+
+/**
+ * Expands the AI tool-use endpoint's (`/api/claude/generate-plan-v2`)
+ * compact `{day, meals:[{slot, recipeId, servings}]}` response into full
+ * DayPlan/Meal[] objects — reusing the exact same ingredient-scaling math
+ * (`formatIngredients`/`scaledMacros`) `assemblePlanFromLibrary` above
+ * uses, so an AI-picked recipe renders in exactly the same shape
+ * (ingredient quantities, macro rounding) as an algorithmically-picked
+ * one and the rest of the app (Fuel/Prep/Haul) needs no AI-specific
+ * rendering path. `servings` is clamped to the same MIN_SCALE-MAX_SCALE
+ * range the algorithmic picker uses, for the same reason (formatIngredients'
+ * rounding assumes a bounded scale factor).
+ *
+ * Throws if a referenced recipeId isn't found in the given pools — the
+ * backend already validates every recipeId is real before returning, so
+ * this should only happen on a pools/library snapshot mismatch. Callers
+ * must treat this the same as any other AI-path failure and fall back to
+ * `assemblePlanFromLibrary` (see SurveyFlow.tsx's handleGenerate) —
+ * this function deliberately does not fall back internally, so a caller
+ * can't accidentally swallow the error and think the AI path succeeded.
+ */
+export function expandCompactPlan(compact: CompactPlan, pools: LibraryPools): DayPlan[] {
+  const byId = new Map<number, LibraryRecipe>()
+  for (const pool of [pools.breakfast, pools.lunch, pools.dinner, pools.snack]) {
+    for (const r of pool) byId.set(r.id, r)
+  }
+
+  return compact.days.map((day) => {
+    const orderedMeals = [...day.meals].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot))
+    const meals: Meal[] = []
+    let dayTotals: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 }
+
+    for (const m of orderedMeals) {
+      const recipe = byId.get(m.recipeId)
+      if (!recipe) throw new Error(`AI plan referenced unknown recipeId ${m.recipeId} for ${day.day} ${m.slot}`)
+      const factor = Math.min(MAX_SCALE, Math.max(MIN_SCALE, m.servings || 1))
+      const scaled = scaledMacros(recipe, factor)
+      meals.push({
+        time: SLOT_TIME[m.slot] || m.slot,
+        name: recipe.name,
+        protein: scaled.protein,
+        carbs: scaled.carbs,
+        fat: scaled.fat,
+        kcal: scaled.kcal,
+        ingredients: formatIngredients(recipe, factor),
+      })
+      dayTotals = { kcal: dayTotals.kcal + scaled.kcal, protein: dayTotals.protein + scaled.protein, carbs: dayTotals.carbs + scaled.carbs, fat: dayTotals.fat + scaled.fat }
+    }
+
+    return { day: day.day, ...dayTotals, meals }
+  })
+}
+
 /** Fetches the full library, one category at a time — unlike libraryGrounding.ts's old compact sample, assemblePlanFromLibrary needs the whole pool to actually pick from, not just a naming hint. */
 export async function getLibraryPools(): Promise<LibraryPools> {
   // Dynamic import, not a top-level one — client.ts pulls in RN/AsyncStorage
