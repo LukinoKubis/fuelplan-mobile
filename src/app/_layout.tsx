@@ -1,5 +1,5 @@
 import '../global.css'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { DarkTheme, DefaultTheme, Slot, ThemeProvider as NavigationThemeProvider, useRouter } from 'expo-router'
 import type { Theme as NavigationTheme } from 'expo-router'
@@ -12,7 +12,7 @@ import Head from 'expo-router/head'
 import { ThemeProvider, useTheme } from '../state/ThemeContext'
 import { AccountProvider, useAccount } from '../state/AccountContext'
 import { PlanProvider, usePlan } from '../state/PlanContext'
-import { warmUpBackend } from '../lib/client'
+import { warmUpBackend, getHistoryList, restoreHistory } from '../lib/client'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -53,6 +53,41 @@ function ShareIntentRedirect() {
     resetShareIntent()
     router.push({ pathname: '/modal/recipe-import', params: { url: finalUrl, text } })
   }, [hasShareIntent, shareIntent, resetShareIntent, router])
+
+  return null
+}
+
+/**
+ * Local storage (AsyncStorage on native, plain `localStorage` on the web
+ * export) isn't guaranteed durable long-term — browsers can and do clear
+ * an inactive origin's storage (e.g. Safari's ~7-day ITP purge for
+ * script-writable storage), which silently drops the locally-cached plan
+ * and sends a returning user straight to the survey even though they
+ * already generated one. Every generated plan is now also saved
+ * server-side (see `modal/plan-name.tsx`), so on hydration, if there's no
+ * local plan but the user is logged in, check the server's saved-plan
+ * history and restore the most recent entry before ever falling through
+ * to the survey. Silently does nothing (falls through to survey as
+ * before) if there's no server history either, or the request fails.
+ */
+function AutoRestoreFromHistory() {
+  const { plan, setPlan } = usePlan()
+  const { isAuthed } = useAccount()
+  const attempted = useRef(false)
+
+  useEffect(() => {
+    if (attempted.current || plan || !isAuthed) return
+    attempted.current = true
+    getHistoryList()
+      .then(({ history }) => {
+        if (history.length === 0) return
+        const mostRecent = [...history].sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())[0]
+        return restoreHistory(mostRecent.id).then((r) => setPlan(r.plan, r.userName, r.planName))
+      })
+      .catch(() => {
+        /* non-critical — falls through to the survey same as before */
+      })
+  }, [plan, isAuthed, setPlan])
 
   return null
 }
@@ -104,6 +139,7 @@ export default function RootLayout() {
             <PlanProvider>
               <AppReadyGate>
                 <ShareIntentRedirect />
+                <AutoRestoreFromHistory />
                 <Slot />
               </AppReadyGate>
             </PlanProvider>

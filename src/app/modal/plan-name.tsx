@@ -6,7 +6,14 @@ import { usePlan } from '../../state/PlanContext'
 import { saveHistory } from '../../lib/client'
 import { useThemeColors } from '../../lib/themeColors'
 
-/** Shown right after generating a plan — names it and saves to history, or Skip to leave it unsaved/unnamed. */
+/**
+ * Shown right after generating a plan — names it and saves to history.
+ * Skip still saves (under a default name) rather than leaving the plan
+ * with no server copy at all: local-only storage isn't durable long-term
+ * (browsers can clear it after enough inactive time), so every generated
+ * plan needs a server-side fallback regardless of whether the user
+ * bothers to give it a custom name.
+ */
 export default function PlanNameScreen() {
   const c = useThemeColors()
   const router = useRouter()
@@ -14,10 +21,9 @@ export default function PlanNameScreen() {
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
 
-  async function handleSave() {
+  async function persist(finalName: string) {
     if (!plan) return router.back()
     setSaving(true)
-    const finalName = name.trim() || 'My Plan'
     try {
       await saveHistory({ plan, userName, planName: finalName, macros: plan.summary })
       setPlanName(finalName)
@@ -28,6 +34,9 @@ export default function PlanNameScreen() {
       router.back()
     }
   }
+
+  const handleSkip = () => persist('My Plan')
+  const handleSave = () => persist(name.trim() || 'My Plan')
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 p-5" style={{ backgroundColor: c.bg }}>
@@ -43,7 +52,7 @@ export default function PlanNameScreen() {
         style={{ borderColor: c.border, backgroundColor: c.bg2, color: c.text }}
       />
       <View className="flex-row gap-3">
-        <Pressable onPress={() => router.back()} className="flex-1 items-center rounded-xl border py-2.5" style={{ borderColor: c.border }}>
+        <Pressable onPress={handleSkip} disabled={saving} className="flex-1 items-center rounded-xl border py-2.5" style={{ borderColor: c.border, opacity: saving ? 0.6 : 1 }}>
           <Text className="text-sm font-semibold" style={{ color: c.muted }}>Skip</Text>
         </Pressable>
         <Pressable onPress={handleSave} disabled={saving} className="flex-1 items-center rounded-xl bg-lime py-2.5" style={{ opacity: saving ? 0.6 : 1 }}>
