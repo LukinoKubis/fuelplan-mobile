@@ -485,7 +485,100 @@ entirely rather than just nudging it. Worth knowing if `git log` turns up
 `libraryGrounding.ts`/the old `generatePrompt.ts` — both were deleted in
 the M5 commit, not deprecated in place.
 
-## Plan generation (Library M5) — algorithmic, not AI
+## Plan generation (M1-M3, AI tool-use) — primary path as of 2026-08-05
+`SurveyFlow.tsx`'s "Generate My Plan" tries an AI tool-use path FIRST, with
+a MANDATORY fallback to the algorithmic picker below (Library M5) on any
+failure — this is the third generation of this feature. History: M4/early
+full-AI (invented meals directly, abandoned) → Library M5 (deterministic,
+zero AI, became primary — see below) → this (M1-M3, AI is back, but
+structurally constrained + always covered by M5 as a fallback, not a
+replacement for it).
+
+**Why AI again, and why this time is different**: the user wanted the
+better macro-fill flexibility an LLM can offer, but the earlier full-AI
+approach (see the M5 section below for the actual postmortem) failed
+because Claude had to invent ~28 meals of raw JSON in one response —
+huge surface for schema drift. This time, `claude-backend`'s
+`POST /api/claude/generate-plan-v2` (fuelplan-backend#1) gives Claude a
+`search_recipes` TOOL (Anthropic tool-use/function-calling) backed by the
+REAL shared library — Claude can only ever reference a recipe id that
+came from an actual tool result, never invent one. The backend validates
+every id/category/day/slot server-side before returning 200. The final
+response is a small `{day, meals:[{slot, recipeId, servings}]}` array,
+not full recipe JSON — drastically less room to get the shape wrong.
+
+**Architecture**:
+1. `SurveyFlow.tsx`'s `handleGenerate` calls `postGeneratePlanV2`
+   (`client.ts`) with the daily macro target + profile (same inputs
+   `assemblePlanFromLibrary` takes). The backend runs a bounded agentic
+   loop server-side (max 20 tool calls / 12 turns — see
+   `claude-backend/CLAUDE.md`) and decrements exactly ONE credit for the
+   whole generation.
+2. On success, `expandCompactPlan()` (`planAssembly.ts`) turns the
+   compact response into full `DayPlan`/`Meal[]` objects, reusing the
+   exact same `formatIngredients`/`scaledMacros` math the algorithmic
+   picker uses — an AI-picked recipe renders identically to an
+   algorithmically-picked one, no AI-specific rendering path needed.
+3. On ANY failure (network error, timeout, 402, 502, invalid shape,
+   `expandCompactPlan` throwing on a data mismatch) — falls back to
+   `assemblePlanFromLibrary` exactly as before this feature existed. This
+   is not optional polish; see "Live-verified, 2026-08-05" below for why.
+4. Credit accounting: `generate-plan-v2` already decrements a credit
+   server-side, so the prep+shopping call after a successful AI pick uses
+   the non-decrementing `postClaudePrepAndShopping` instead of the
+   decrementing `postClaude` — using the decrementing endpoint for both
+   steps would silently charge two credits for one "Generate My Plan".
+   The fallback path keeps using `postClaude`, unchanged, so total cost
+   is exactly one credit either way.
+
+**Live-verified, 2026-08-05** (M3, fuelplan-mobile#30) — a 4-profile real
+test matrix (aggressive cut, bulk, dietary-restricted, moderate) compared
+against the M5 algorithmic baseline on the same live library:
+- **Dietary restriction/dislike adherence: perfect (0 violations) on both
+  paths**, and structurally more reliable on the AI path than the old
+  free-AI approach ever was — `search_recipes` filters disliked
+  ingredients out server-side before Claude ever sees them (never a
+  post-hoc "please avoid this" instruction the model could ignore).
+- **kcal accuracy**: AI path lands within roughly 1-2% of target on most
+  profiles — close, though the M5 algorithmic picker (a scored local
+  search, not an LLM estimating) is still tighter (frequently exact or
+  within single digits).
+- **Protein accuracy — a real bug found and fixed live**: the AI path
+  initially overshot the daily protein target by 30-100g across the test
+  matrix (M5 stayed within single digits on the same profiles). Root
+  cause: `search_recipes` ranked results by protein density by default,
+  so Claude was always shown the most protein-dense options first
+  regardless of what it asked for — see `claude-backend/CLAUDE.md`'s
+  `search_recipes` section for the fix (neutral kcal-proximity ranking +
+  an explicit numeric target band in the system prompt instead of an
+  open-ended "undershoot is worse"). Re-verified on the aggressive-cut
+  profile after the fix: protein overshoot dropped from +33g to +8g,
+  within the target band.
+- **A real, still-open reliability gap**: on the bulk/high-macro profile
+  specifically (more meals/servings math, more tool calls needed), a
+  single agentic-loop turn twice took long enough to exceed even a
+  raised 90s per-call timeout, surfacing as a 504 to the client. This is
+  a genuine failure mode the AI path has that the algorithmic path
+  doesn't (a deterministic local computation is never slow). **This is
+  exactly the scenario the mandatory fallback exists for** — verified
+  separately (deterministic Playwright network interception forcing
+  `generate-plan-v2` to fail) that the fallback triggers cleanly and
+  produces a normal, accurate, working plan with no error shown to the
+  user. See fuelplan-mobile#31 for the open follow-up on tightening the
+  AI path's reliability on complex profiles specifically.
+- **Verdict**: shipped as primary. Accuracy is roughly comparable to M5
+  post-fix (kcal slightly less tight, protein now within band, dietary
+  adherence equal-or-better), and the one known reliability gap (complex
+  profiles occasionally timing out) is fully covered by a fallback proven
+  to work live, not just assumed correct from reading the try/catch.
+
+## Plan generation (Library M5) — now the FALLBACK path, not primary
+Was the primary path from 2026-07-26 to 2026-08-05; superseded by the
+AI tool-use path above but NOT deleted or replaced — every generation
+still runs this algorithm whenever the AI path fails for any reason, so
+it needs to stay correct and tested on its own merits. All the history
+below is still accurate for how the fallback itself behaves.
+
 `SurveyFlow.tsx`'s "Generate My Plan" no longer asks an LLM to invent 28
 meals from scratch. Instead:
 1. **Pick + scale, zero AI** (`planAssembly.ts`'s `assemblePlanFromLibrary`)
