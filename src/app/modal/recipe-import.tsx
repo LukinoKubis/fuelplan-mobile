@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import Svg, { Line } from 'react-native-svg'
 import { useThemeColors } from '../../lib/themeColors'
 import { ApiError, extractInstagramCaption, extractVideoText, postClaude, saveRecipe } from '../../lib/client'
-import { buildExtractRecipeRequest } from '../../lib/recipePrompt'
+import { buildExtractRecipeRequest, buildRecalculateMacrosRequest } from '../../lib/recipePrompt'
 import { friendlyErrorMessage } from '../../lib/errorMessage'
 import { useAccount } from '../../state/AccountContext'
 import { RecipePhotoPicker } from '../../components/shared/RecipePhotoPicker'
@@ -38,6 +38,15 @@ export default function RecipeImportScreen() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState<Recipe | null>(null)
+  // True once the ingredient list has changed since macros were last
+  // computed (initial extraction, or a prior recalculate) — ingredient
+  // edits don't recompute macros on their own (see addIngredient/
+  // removeIngredient/patchIngredient below), so this flag is what tells
+  // the user their macros are now out of date instead of silently
+  // leaving stale numbers with no indication.
+  const [macrosStale, setMacrosStale] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
+  const [recalcError, setRecalcError] = useState('')
   const [prefetching, setPrefetching] = useState(false)
   const [videoReading, setVideoReading] = useState(false)
   const [videoNote, setVideoNote] = useState('')
@@ -232,6 +241,7 @@ export default function RecipeImportScreen() {
         sourcePlatform: platform,
         savedAt: new Date().toISOString(),
       })
+      setMacrosStale(false)
       setStage('preview')
       refreshRemaining()
     } catch (err) {
@@ -263,22 +273,56 @@ export default function RecipeImportScreen() {
     if (!draft) return
     const num = parseInt(value, 10)
     patchDraft({ macros: { ...draft.macros, [key]: Number.isFinite(num) ? num : 0 } })
+    setMacrosStale(false)
   }
 
   function patchIngredient(index: number, patch: Partial<RecipeIngredient>) {
     if (!draft) return
     const next = draft.ingredients.map((ing, i) => (i === index ? { ...ing, ...patch } : ing))
     patchDraft({ ingredients: next })
+    setMacrosStale(true)
   }
 
   function addIngredient() {
     if (!draft) return
     patchDraft({ ingredients: [...draft.ingredients, { name: '', qty: '' }] })
+    setMacrosStale(true)
   }
 
   function removeIngredient(index: number) {
     if (!draft) return
     patchDraft({ ingredients: draft.ingredients.filter((_, i) => i !== index) })
+    setMacrosStale(true)
+  }
+
+  /** Re-calls Claude to recompute macros for the current (possibly hand-edited) ingredient list — see macrosStale above. */
+  async function handleRecalculate() {
+    if (!draft) return
+    setRecalcError('')
+    setRecalculating(true)
+    try {
+      const { system, messages, model, max_tokens } = buildRecalculateMacrosRequest({ recipe: draft })
+      const response = await postClaude({ model, max_tokens, system, messages })
+      const text = response.content[0]?.text || ''
+      const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+      let parsed: Partial<Recipe>
+      try {
+        parsed = JSON.parse(cleaned)
+      } catch {
+        const match = cleaned.match(/\{[\s\S]*\}/)
+        if (!match) throw new Error('Got invalid JSON back. Please try again.')
+        parsed = JSON.parse(match[0])
+      }
+      // Only macros/servings come from the response — ingredients/steps/name
+      // stay exactly what the user has on screen, never silently rewritten.
+      patchDraft({ macros: parsed.macros || draft.macros, servings: parsed.servings ?? draft.servings })
+      setMacrosStale(false)
+      refreshRemaining()
+    } catch (err) {
+      setRecalcError(err instanceof ApiError ? err.message : friendlyErrorMessage(err))
+    } finally {
+      setRecalculating(false)
+    }
   }
 
   function patchStep(index: number, value: string) {
@@ -436,6 +480,24 @@ export default function RecipeImportScreen() {
           </View>
         ))}
       </View>
+
+      {macrosStale ? (
+        <View className="mb-4 rounded-xl border px-3 py-2.5" style={{ borderColor: c.orange, backgroundColor: 'rgba(255,154,66,0.1)' }}>
+          <Text className="mb-2 text-xs" style={{ color: c.orange }}>
+            Ingredients changed — the macros above no longer reflect them.
+          </Text>
+          {recalcError ? <Text className="mb-2 text-xs" style={{ color: c.red }}>{recalcError}</Text> : null}
+          <Pressable
+            onPress={handleRecalculate}
+            disabled={recalculating}
+            className="flex-row items-center justify-center gap-2 rounded-xl bg-orange py-2"
+            style={{ opacity: recalculating ? 0.6 : 1 }}
+          >
+            {recalculating && <ActivityIndicator color="#0e0f11" />}
+            <Text className="text-xs font-extrabold text-bg">{recalculating ? 'Recalculating…' : 'Recalculate Macros'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Text className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: c.muted }}>Ingredients</Text>
       <View className="mb-3 gap-2">
